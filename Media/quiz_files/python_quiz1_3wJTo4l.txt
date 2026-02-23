@@ -1,0 +1,69 @@
+What is the correct file extension for Python files?
+A. .py
+B. .pyt
+C. .python
+D. .pt
+ANSWER: A
+
+Which of the following is used to display output in Python?
+A. print()
+B. echo()
+C. display()
+D. write()
+ANSWER: A
+
+Which data type is used to store a sequence of characters in Python?
+A. int
+B. str
+C. list
+D. bool
+ANSWER: B
+
+What will be the output of `print(3 * 'Hello ')`?
+A. Hello Hello Hello
+B. 3Hello
+C. Hello * 3
+D. HelloHelloHello
+ANSWER: A
+
+Which of the following is a valid variable name in Python?
+A. 2var
+B. var_2
+C. var-2
+D. var 2
+ANSWER: B
+
+Which keyword is used to define a function in Python?
+A. define
+B. function
+C. def
+D. func
+ANSWER: C
+
+How do you start a comment in Python?
+A. //
+B. --
+C. /*
+D. #
+ANSWER: D
+
+What is the output of `print(type(10))`?
+A. <class 'int'>
+B. <type 'integer'>
+C. integer
+D. <class 'str'>
+ANSWER: A
+
+Which operator is used for exponentiation (power) in Python?
+A. ^
+B. **
+C. //
+D. %
+ANSWER: B
+
+What will `bool([])` return?
+A. True
+B. False
+C. None
+D. Error
+ANSWER: B

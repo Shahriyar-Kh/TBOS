@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Assignment Overview{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-primary text-white py-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h1 class="h3 mb-0">{{ assignment.title }}</h1>
+                        <span class="badge bg-light text-primary fs-6">{{ assignment.course.title }}</span>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <!-- Assignment Details Section -->
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <div class="mb-4">
+                                <h3 class="h5 text-muted mb-3">Assignment Details</h3>
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span><i class="fas fa-book me-2"></i>Lesson</span>
+                                        <span class="text-dark">{{ assignment.lesson_name.title }}</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span><i class="fas fa-clock me-2"></i>Time Limit</span>
+                                        <span class="text-dark">{{ assignment.time_limit }} minutes</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span><i class="fas fa-file-alt me-2"></i>Description</span>
+                                        <span class="text-dark">{{ assignment.description }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PDF Download Section -->
+                            {% if assignment.pdf_file %}
+                            <div class="mb-4">
+                                <h3 class="h5 text-muted mb-3">Assignment Materials</h3>
+                                <a href="{{ assignment.pdf_file.url }}" class="btn btn-outline-primary d-inline-flex align-items-center" download>
+                                    <i class="fas fa-file-pdf me-2"></i>
+                                    Download Assignment PDF
+                                </a>
+                                <small class="text-muted d-block mt-2">File size: {{ assignment.pdf_file.size|filesizeformat }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Status Card -->
+                        <div class="col-md-4">
+                            <div class="card border-primary mb-3">
+                                <div class="card-header bg-light-primary text-primary">
+                                    Your Progress
+                                </div>
+                                <div class="card-body text-center">
+                                    {% if submission %}
+                                        {% if submission.status == "Pending" %}
+                                            <div class="mb-3">
+                                                <i class="fas fa-hourglass-half fa-3x text-warning mb-3"></i>
+                                                <p class="mb-0">Assignment Not Started</p>
+                                            </div>
+                                            <a href="{% url 'start_assignment' assignment.id %}" class="btn btn-success w-100 py-2">
+                                                <i class="fas fa-play me-2"></i>Start Assignment
+                                            </a>
+                                        {% else %}
+                                            <div class="mb-3">
+                                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                                <p class="mb-0">Assignment Submitted</p>
+                                            </div>
+                                            <a href="{% url 'view_grading' assignment.id %}" class="btn btn-primary w-100 py-2">
+                                                <i class="fas fa-chart-bar me-2"></i>View Results
+                                            </a>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="mb-3">
+                                            <i class="fas fa-exclamation-triangle fa-3x text-info mb-3"></i>
+                                            <p class="mb-0">No Submission Found</p>
+                                        </div>
+                                        <a href="{% url 'start_assignment' assignment.id %}" class="btn btn-success w-100 py-2">
+                                            <i class="fas fa-play me-2"></i>Start Assignment
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="alert alert-info mt-4">
+                        <h4 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Important Notes</h4>
+                        <ul class="mb-0">
+                            <li>Ensure stable internet connection during the assignment</li>
+                            <li>All answers must be submitted before the time limit</li>
+                            <li>You can only attempt this assignment once</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

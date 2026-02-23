@@ -1,0 +1,99 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout</title>
+    <script src="https://js.stripe.com/v3/"></script> <!-- Stripe JS -->
+</head>
+<body>
+
+<h1>Checkout - {{ course.title }}</h1>
+<p>Price: ₹{{ course.price }}</p>
+
+<!-- Checkout Form -->
+<form id="payment-form" method="POST">
+    {% csrf_token %}
+    <input type="hidden" id="payment_intent_id" value="{{ order.order_id }}"> <!-- Include Stripe order_id if available -->
+
+    <!-- User Information -->
+    <input type="text" name="first_name" placeholder="First Name" required><br>
+    <input type="text" name="last_name" placeholder="Last Name" required><br>
+    <input type="text" name="phone" placeholder="Phone" required><br>
+    <input type="email" name="email" placeholder="Email" required><br>
+
+    <!-- Address -->
+    <input type="text" name="address1" placeholder="Address Line 1" required><br>
+    <input type="text" name="address2" placeholder="Address Line 2"><br>
+    <input type="text" name="city" placeholder="City" required><br>
+    <input type="text" name="state" placeholder="State" required><br>
+    <input type="text" name="postcode" placeholder="Postcode" required><br>
+    <input type="text" name="country" placeholder="Country" required><br>
+
+    <!-- Order Comments -->
+    <textarea name="order_comments" placeholder="Order Comments"></textarea><br>
+
+    <button type="submit" id="submit-button">Pay ₹{{ course.price }}</button>
+</form>
+
+<!-- Stripe Script -->
+<script>
+    // Initialize Stripe
+    const stripe = Stripe("pk_test_51QWbuJ2LwnSeLllTqmA1CyZWb3xK3DsoreoIeE73a8qIRDpN75rznFfBdzem2fE4ndIu6OhbHB7o7R7YVP76QBpp002gCZf3qs"); // Replace with your Stripe publishable key
+
+    const paymentForm = document.getElementById("payment-form");
+    const submitButton = document.getElementById("submit-button");
+
+    paymentForm.addEventListener("submit", function (event) {
+        event.preventDefault(); // Prevent the form from submitting normally
+
+        // Make a POST request to the server to create the PaymentIntent
+        fetch(window.location.href + "?action=create_payment", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                first_name: document.querySelector("[name='first_name']").value,
+                last_name: document.querySelector("[name='last_name']").value,
+                phone: document.querySelector("[name='phone']").value,
+                email: document.querySelector("[name='email']").value,
+                address1: document.querySelector("[name='address1']").value,
+                address2: document.querySelector("[name='address2']").value,
+                city: document.querySelector("[name='city']").value,
+                state: document.querySelector("[name='state']").value,
+                postcode: document.querySelector("[name='postcode']").value,
+                country: document.querySelector("[name='country']").value,
+                order_comments: document.querySelector("[name='order_comments']").value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.client_secret) {
+                // Confirm the payment with Stripe
+                stripe.confirmCardPayment(data.client_secret, {
+                    payment_method: {
+                        card: {token: "tok_visa"} // This would require a proper card input field
+                    }
+                }).then(function(result) {
+                    if (result.error) {
+                        alert("Payment failed: " + result.error.message);
+                    } else {
+                        // Payment succeeded
+                        alert("Payment successful! Redirecting...");
+                        window.location.href = "{% url 'my_course' %}"; // Redirect to user's courses
+                    }
+                });
+            } else {
+                alert("Error: Unable to initiate payment.");
+            }
+        })
+        .catch(error => console.error("Error:", error));
+    });
+</script>
+
+</body>
+</html>
