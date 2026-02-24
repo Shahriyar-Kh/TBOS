@@ -1,0 +1,1 @@
+web: gunicorn TechBuilt.wsgi --log-file -

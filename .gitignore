@@ -9,7 +9,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
@@ -24,15 +23,16 @@ var/
 
 # Virtual environments
 venv/
-ENV/
 env/
+ENV/
+.venv/
 venv.bak/
 
-# Django stuff:
+# Django
 *.log
 local_settings.py
 db.sqlite3
-media
+media/
 Media/
 staticfiles/
 
@@ -47,6 +47,5 @@ staticfiles/
 .DS_Store
 Thumbs.db
 
-# env files
+# Environment files
 .env
-.venv
