@@ -175,7 +175,9 @@ class UserCourse(models.Model):
     date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.user.first_name + " - " + self.course.title
+        user_name = self.user.first_name if self.user else "Unknown"
+        course_title = self.course.title if self.course else "No Course"
+        return f"{user_name} - {course_title}"
 
 
 #--------------------------- Billing details and payment -----------------------------------
@@ -205,7 +207,9 @@ class Payment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.user.first_name} -- {self.course.title}"
+        user_name = self.user.first_name if self.user else "Unknown User"
+        course_title = self.course.title if self.course else "No Course"
+        return f"{user_name} -- {course_title}"
 
 
 # =========================== Review and Rating ==========================
@@ -293,7 +297,8 @@ class Assignment(models.Model):
     time_limit = models.IntegerField(default=60)
 
     def __str__(self):
-        return f"{self.title} - {self.course.title}"
+        course_title = self.course.title if self.course else "No Course"
+        return f"{self.title} - {course_title}"
 
 
 class Submission(models.Model):
