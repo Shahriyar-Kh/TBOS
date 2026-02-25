@@ -32,7 +32,13 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # SECURITY SETTINGS
 # ==============================
 
+
+# Generate a new secret key if you need one:
+# from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())
+# For Render, set SECRET_KEY in the Render dashboard (Environment tab) with this value.
 SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise Exception("SECRET_KEY environment variable not set! Please set it in the Render dashboard.")
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
