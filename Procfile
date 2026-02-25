@@ -1,1 +1,1 @@
-web: python manage.py migrate && python manage.py collectstatic --noinput && gunicorn TechBuilt.wsgi
+web: python manage.py migrate && python manage.py collectstatic --noinput && gunicorn TechBuilt.wsgi --log-file -
