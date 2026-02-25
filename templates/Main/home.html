@@ -98,7 +98,7 @@
                                     </div>
 
                                     <a href="{{i.get_absolute_url}}" class="card-img sk-thumbnail img-ratio-9 d-block">
-                                        <img class="rounded shadow-light-lg" src="{{i.featured_image}}" alt="...">
+                                        <img class="rounded shadow-light-lg" src="{{i.featured_image.url}}" alt="...">
                                     </a>
 
                                     <span class="badge sk-fade-bottom badge-lg badge-orange badge-pill badge-float bottom-0 left-0 mb-4 ms-4">
@@ -110,7 +110,7 @@
                                 <div class="card-footer px-2 pb-2 mb-1 pt-4 position-relative">
                                     <a href="{{i.get_absolute_url}}" class="d-block">
                                         <div class="avatar avatar-xl badge-float position-absolute top-0 right-0 mt-n6 me-5 rounded-circle shadow border border-white border-w-lg">
-                                            <img src="{{i.author.author_profile}}" alt="..." class="avatar-img rounded-circle">
+                                            <img src="{{i.author.author_profile.url}}" alt="..." class="avatar-img rounded-circle">
                                         </div>
                                     </a>
 
@@ -212,7 +212,7 @@
                                 </div>
 
                                 <a href="{{i.get_absolute_url}}" class="card-img sk-thumbnail img-ratio-9 d-block">
-                                    <img class="rounded shadow-light-lg" src="/{{i.featured_image}}" alt="...">
+                                    <img class="rounded shadow-light-lg" src="{{i.featured_image.url}}" alt="...">
                                 </a>
 
                                 <span class="badge sk-fade-bottom badge-lg badge-orange badge-pill badge-float bottom-0 left-0 mb-4 ms-4">
@@ -224,7 +224,7 @@
                             <div class="card-footer px-2 pb-2 mb-1 pt-4 position-relative">
                                 <a href="{{i.get_absolute_url}}" class="d-block">
                                     <div class="avatar avatar-xl badge-float position-absolute top-0 right-0 mt-n6 me-5 rounded-circle shadow border border-white border-w-lg">
-                                        <img src="{{i.author.author_profile}}" alt="..." class="avatar-img rounded-circle">
+                                        <img src="{{i.author.author_profile.url}}" alt="..." class="avatar-img rounded-circle">
                                     </div>
                                 </a>
                                 <div class="position-relative">
@@ -473,7 +473,7 @@
                                 </ul>
                             </div>
 
-                            <a href="{% url 'instructor' i.id %}" class="card-img sk-thumbnail img-ratio-4 card-hover-overlay d-block"><img class="rounded shadow-light-lg img-fluid" src="/{{i.author_profile}}" alt="..."></a>
+                            <a href="{% url 'instructor' i.id %}" class="card-img sk-thumbnail img-ratio-4 card-hover-overlay d-block"><img class="rounded shadow-light-lg img-fluid" src="{{i.author_profile.url}}" alt="..."></a>
                         </div>
 
                         <!-- Footer -->

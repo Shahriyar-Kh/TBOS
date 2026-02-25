@@ -10,7 +10,7 @@
                 <div class="d-flex flex-wrap align-items-center justify-content-center mb-5 mb-md-3">
                     <div class="border rounded-circle d-inline-block mb-4 mb-md-0 mx-lg-4 order-0">
                         <div class="p-4">
-                            <img src="/{{instructor.author_profile}}" alt="..." class="rounded-circle img-fluid" width="170" height="170">
+                            <img src="{{instructor.author_profile.url}}" alt="..." class="rounded-circle img-fluid" width="170" height="170">
                         </div>
                     </div>
 
@@ -196,7 +196,7 @@
                                 <!-- Image -->
                                 <div class="card-zoom position-relative">
                                     <a href="{% url 'course_details' i.slug %}" class="card-img sk-thumbnail img-ratio-3 d-block">
-                                        <img class="rounded shadow-light-lg" src="/{{i.featured_image}}" alt="...">
+                                        <img class="rounded shadow-light-lg" src="{{i.featured_image.url}}" alt="...">
                                     </a>
 
                                     <span class="sk-fade-right badge-float bottom-0 right-0 mb-2 me-2">
