@@ -2,6 +2,10 @@ from datetime import timedelta
 
 from django.db.models import Count, Avg
 from django.utils.timezone import now
+import time
+
+def get_current_timestamp():
+    return int(time.time())
 
 from django.db import models
 
@@ -312,7 +316,7 @@ class Submission(models.Model):
         default="pending"
     )
     submitted_at = models.DateTimeField(auto_now=True)
-    start_time = models.IntegerField(default=now().timestamp(), null=True, blank=True)
+    start_time = models.IntegerField(default=get_current_timestamp, null=True, blank=True)
     end_time = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
