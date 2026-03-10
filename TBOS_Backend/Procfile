@@ -1,0 +1,1 @@
+web: DJANGO_SETTINGS_MODULE=config.settings.production python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --log-file -

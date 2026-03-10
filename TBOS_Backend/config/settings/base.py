@@ -1,22 +1,30 @@
 """
-Django settings for the modular TBOS API backend.
+Django base settings for TechBuilt Open School (TBOS).
+
+All environment-agnostic configuration lives here.
+Environment-specific overrides are in development.py and production.py.
 """
 
 import os
 from datetime import timedelta
 from pathlib import Path
 
-import dj_database_url
 from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# ==============================
+# PATHS
+# ==============================
 
-load_dotenv(BASE_DIR / ".env")
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # TBOS_Backend/
+PROJECT_ROOT = BASE_DIR.parent  # TBOS/ (monorepo root)
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 def env_list(name, default=""):
     value = os.environ.get(name, default)
     return [item.strip() for item in value.split(",") if item.strip()]
+
 
 # ==============================
 # SECURITY
@@ -26,7 +34,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise Exception("SECRET_KEY environment variable not set!")
 
-DEBUG = os.environ.get("DEBUG", "False") == "True"
+DEBUG = False  # overridden in development.py
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list(
@@ -38,24 +46,21 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
-
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ==============================
 # APPLICATIONS
 # ==============================
 
-INSTALLED_APPS = [
+DJANGO_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+]
 
-    # Third-party
+THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
@@ -64,8 +69,9 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "cloudinary",
     "cloudinary_storage",
+]
 
-    # Project apps
+LOCAL_APPS = [
     "apps.core",
     "apps.accounts",
     "apps.courses",
@@ -81,6 +87,8 @@ INSTALLED_APPS = [
     "apps.certificates",
     "apps.notifications",
 ]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -104,42 +112,18 @@ ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
 # ==============================
-# DATABASE
+# DATABASE (default — overridden per environment)
 # ==============================
 
-database_url = os.environ.get("DATABASE_URL")
-
-if database_url:
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=database_url,
-            conn_max_age=600,
-            ssl_require=not DEBUG,
-        )
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-elif os.environ.get("POSTGRES_DB"):
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("POSTGRES_DB"),
-            "USER": os.environ.get("POSTGRES_USER", "postgres"),
-            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-            "CONN_MAX_AGE": 600,
-        }
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+}
 
 # ==============================
 # TEMPLATES
-# Required for Swagger UI and any package-level templates.
 # ==============================
 
 TEMPLATES = [
@@ -167,15 +151,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-
-STORAGES = {
-    "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
 
 # ==============================
 # CLOUDINARY
@@ -290,8 +265,10 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "TechBuilt Open School API",
-    "DESCRIPTION": "Production-ready EdTech LMS REST API with role-based access, "
-                   "JWT authentication, Stripe payments, and Celery async tasks.",
+    "DESCRIPTION": (
+        "Production-ready EdTech LMS REST API with role-based access, "
+        "JWT authentication, Stripe payments, and Celery async tasks."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": "/api/v1/",
@@ -328,8 +305,12 @@ CORS_ALLOW_CREDENTIALS = True
 # CELERY (Redis)
 # ==============================
 
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0"))
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0"))
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+)
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+)
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -379,35 +360,67 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "{levelname} {asctime} {module} {message}",
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {asctime} {message}",
             "style": "{",
         },
     },
-    "handlers": {
-        "file": {
-            "level": "WARNING",
-            "class": "logging.FileHandler",
-            "filename": LOG_DIR / "django.log",
-            "formatter": "verbose",
+    "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
         },
+    },
+    "handlers": {
         "console": {
             "level": "INFO",
             "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "app_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "app.log",
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+        },
+        "error_file": {
+            "level": "ERROR",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "error.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "verbose",
+        },
+        "request_file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "requests.log",
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 3,
             "formatter": "verbose",
         },
     },
     "root": {
-        "handlers": ["console", "file"],
+        "handlers": ["console", "app_file"],
         "level": "INFO",
     },
     "loggers": {
         "django": {
-            "handlers": ["console", "file"],
+            "handlers": ["console", "error_file"],
             "level": "WARNING",
             "propagate": False,
         },
+        "django.request": {
+            "handlers": ["request_file", "error_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "apps": {
-            "handlers": ["console", "file"],
+            "handlers": ["console", "app_file", "error_file"],
             "level": "INFO",
             "propagate": False,
         },
