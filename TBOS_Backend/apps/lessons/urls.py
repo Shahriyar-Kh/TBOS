@@ -18,4 +18,9 @@ router.register(
 
 urlpatterns = [
     path("", include(router.urls)),
+    # Student video endpoint: GET /api/v1/lessons/{lesson_pk}/video/
+    path(
+        "<uuid:lesson_pk>/video/",
+        include("apps.videos.urls_lesson"),
+    ),
 ]
