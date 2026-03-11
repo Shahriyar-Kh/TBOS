@@ -15,9 +15,9 @@ router.register(r"admin/languages", views.AdminLanguageViewSet, basename="admin-
 
 urlpatterns = [
     path("", views.PublicCourseListView.as_view(), name="course-list"),
-    path("<slug:slug>/", views.PublicCourseDetailView.as_view(), name="course-detail"),
     path("categories/", views.CategoryListView.as_view(), name="category-list"),
     path("levels/", views.LevelListView.as_view(), name="level-list"),
     path("languages/", views.LanguageListView.as_view(), name="language-list"),
     path("", include(router.urls)),
+    path("<slug:slug>/", views.PublicCourseDetailView.as_view(), name="course-detail"),
 ]
