@@ -218,6 +218,7 @@ class CourseService:
         from django.db.models import Avg, Count
 
         from apps.enrollments.models import Enrollment
+        from apps.lessons.models import Lesson
         from apps.reviews.models import Review
 
         course.total_enrollments = Enrollment.objects.filter(
@@ -228,7 +229,7 @@ class CourseService:
         )
         course.average_rating = round(review_agg["avg"], 2) if review_agg["avg"] else 0
         course.rating_count = review_agg["count"] or 0
-        course.total_lessons = course.lessons.count()
+        course.total_lessons = Lesson.objects.filter(section__course=course).count()
         course.save(
             update_fields=[
                 "total_enrollments",

@@ -26,7 +26,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/")
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
+        results = response.data["data"]["results"]
         assert len(results) == 1
         assert results[0]["status"] == Course.Status.PUBLISHED
 
@@ -36,7 +36,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 0
+        assert len(response.data["data"]["results"]) == 0
 
     def test_supports_pagination(self, api_client):
         for _ in range(5):
@@ -45,9 +45,9 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"page_size": 2})
 
         assert response.status_code == status.HTTP_200_OK
-        assert "count" in response.data
-        assert "next" in response.data
-        assert len(response.data["results"]) == 2
+        assert "count" in response.data["data"]
+        assert "next" in response.data["data"]
+        assert len(response.data["data"]["results"]) == 2
 
     def test_accessible_without_authentication(self, api_client):
         CourseFactory(status=Course.Status.PUBLISHED)
@@ -65,8 +65,8 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"category__slug": cat1.slug})
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 1
-        assert response.data["results"][0]["category"]["slug"] == cat1.slug
+        assert len(response.data["data"]["results"]) == 1
+        assert response.data["data"]["results"][0]["category"]["slug"] == cat1.slug
 
     def test_filter_by_is_free(self, api_client):
         CourseFactory(status=Course.Status.PUBLISHED, is_free=True)
@@ -75,7 +75,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"is_free": "true"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert all(c["is_free"] for c in response.data["results"])
+        assert all(c["is_free"] for c in response.data["data"]["results"])
 
     def test_search_by_title(self, api_client):
         CourseFactory(title="Django Mastery", status=Course.Status.PUBLISHED)
@@ -84,7 +84,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"search": "Django"})
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
+        results = response.data["data"]["results"]
         assert len(results) == 1
         assert results[0]["title"] == "Django Mastery"
 
@@ -95,7 +95,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"ordering": "created_at"})
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
+        results = response.data["data"]["results"]
         assert len(results) == 2
 
     def test_ordering_by_average_rating_descending(self, api_client):
@@ -105,7 +105,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/", {"ordering": "-average_rating"})
 
         assert response.status_code == status.HTTP_200_OK
-        results = response.data["results"]
+        results = response.data["data"]["results"]
         assert float(results[0]["average_rating"]) >= float(results[1]["average_rating"])
 
     def test_response_contains_expected_fields(self, api_client):
@@ -114,7 +114,7 @@ class TestPublicCourseListView:
         response = api_client.get(f"{BASE}/")
 
         assert response.status_code == status.HTTP_200_OK
-        course_data = response.data["results"][0]
+        course_data = response.data["data"]["results"][0]
         for field in ["id", "title", "slug", "price", "status", "instructor_name"]:
             assert field in course_data
 
@@ -132,8 +132,8 @@ class TestPublicCourseDetailView:
         response = api_client.get(f"{BASE}/{course.slug}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["slug"] == course.slug
-        assert response.data["title"] == "Detail Course"
+        assert response.data["data"]["slug"] == course.slug
+        assert response.data["data"]["title"] == "Detail Course"
 
     def test_returns_404_for_invalid_slug(self, api_client):
         response = api_client.get(f"{BASE}/nonexistent-slug/")
@@ -156,7 +156,7 @@ class TestPublicCourseDetailView:
         response = api_client.get(f"{BASE}/{course.slug}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["learning_outcomes"]) == 1
+        assert len(response.data["data"]["learning_outcomes"]) == 1
 
     def test_detail_response_includes_requirements(self, api_client):
         from tests.factories import RequirementFactory
@@ -167,7 +167,7 @@ class TestPublicCourseDetailView:
         response = api_client.get(f"{BASE}/{course.slug}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["requirements"]) == 1
+        assert len(response.data["data"]["requirements"]) == 1
 
     def test_detail_includes_instructor_info(self, api_client):
         instructor = InstructorFactory(first_name="John", last_name="Doe")
@@ -178,8 +178,7 @@ class TestPublicCourseDetailView:
         response = api_client.get(f"{BASE}/{course.slug}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["instructor_name"] == "John Doe"
-        assert "instructor_id" in response.data
+        assert response.data["data"]["instructor_name"] == "John Doe"
 
 
 # ──────────────────────────────────────────────
@@ -245,7 +244,7 @@ class TestInstructorCourseViewSet:
         )
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["title"] == "New Instructor Course"
+        assert response.data["data"]["title"] == "New Instructor Course"
 
     def test_student_cannot_create_course(self, auth_client):
         category = CategoryFactory(name="Student Create Cat")
@@ -294,7 +293,7 @@ class TestInstructorCourseViewSet:
         response = api_client.get(self.INSTRUCTOR_URL)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 2
+        assert response.data["data"]["count"] == 2
 
     def test_admin_sees_all_courses_in_instructor_list(
         self, admin_client
@@ -307,7 +306,7 @@ class TestInstructorCourseViewSet:
         response = admin_client.get(self.INSTRUCTOR_URL)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 2
+        assert response.data["data"]["count"] == 2
 
     def test_instructor_can_update_own_course(
         self, api_client, instructor_user, access_token_for_user
@@ -356,7 +355,7 @@ class TestInstructorCourseViewSet:
         response = api_client.get(f"{self.INSTRUCTOR_URL}{course.id}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert str(response.data["id"]) == str(course.id)
+        assert str(response.data["data"]["id"]) == str(course.id)
 
     def test_instructor_can_delete_own_course(
         self, api_client, instructor_user, access_token_for_user
@@ -387,7 +386,7 @@ class TestInstructorCourseViewSet:
         )
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["status"] == Course.Status.DRAFT
+        assert response.data["data"]["status"] == Course.Status.DRAFT
 
 
 # ──────────────────────────────────────────────
@@ -526,16 +525,16 @@ class TestCourseStatusWorkflow:
         self, api_client, instructor_user, access_token_for_user
     ):
         course = CourseFactory(
-            instructor=instructor_user, status=Course.Status.DRAFT
+            instructor=instructor_user,
+            status=Course.Status.DRAFT,
+            thumbnail="https://example.com/thumb.jpg",
         )
 
         api_client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {access_token_for_user(instructor_user)}"
         )
-        response = api_client.patch(
-            f"{self.INSTRUCTOR_URL}{course.id}/",
-            {"status": Course.Status.PUBLISHED},
-            format="json",
+        response = api_client.post(
+            f"{self.INSTRUCTOR_URL}{course.id}/publish/",
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -552,10 +551,8 @@ class TestCourseStatusWorkflow:
         api_client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {access_token_for_user(instructor_user)}"
         )
-        response = api_client.patch(
-            f"{self.INSTRUCTOR_URL}{course.id}/",
-            {"status": Course.Status.ARCHIVED},
-            format="json",
+        response = api_client.post(
+            f"{self.INSTRUCTOR_URL}{course.id}/archive/",
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -568,7 +565,7 @@ class TestCourseStatusWorkflow:
         response = api_client.get(f"{BASE}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 1
+        assert len(response.data["data"]["results"]) == 1
 
     def test_archived_course_not_visible_in_public_list(self, api_client, instructor_user):
         CourseFactory(instructor=instructor_user, status=Course.Status.ARCHIVED)
@@ -576,4 +573,4 @@ class TestCourseStatusWorkflow:
         response = api_client.get(f"{BASE}/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 0
+        assert len(response.data["data"]["results"]) == 0

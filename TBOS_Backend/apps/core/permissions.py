@@ -72,6 +72,7 @@ class IsOwnerInstructor(BasePermission):
     View-level: user must be an instructor.
     Object-level: instructor must own the course (obj.instructor == user).
     Admins bypass the ownership check.
+    Supports multi-level traversal: obj.course, obj.section.course, etc.
     """
 
     def has_permission(self, request, view):
@@ -84,7 +85,12 @@ class IsOwnerInstructor(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.user.role == "admin":
             return True
-        course = getattr(obj, "course", obj)
+        # Traverse to the owning course
+        if hasattr(obj, "section"):
+            # Lesson → section → course
+            course = getattr(obj.section, "course", None)
+        else:
+            course = getattr(obj, "course", obj)
         instructor = getattr(course, "instructor", None)
         return instructor == request.user
 

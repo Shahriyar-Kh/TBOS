@@ -3,6 +3,7 @@ from factory.django import DjangoModelFactory
 
 from apps.accounts.models import Profile, User
 from apps.courses.models import Category, Course, Language, LearningOutcome, Level, Requirement
+from apps.lessons.models import CourseSection, Lesson
 
 
 class UserFactory(DjangoModelFactory):
@@ -126,3 +127,32 @@ class RequirementFactory(DjangoModelFactory):
     course = factory.SubFactory(CourseFactory)
     text = factory.Faker("sentence", nb_words=6)
     order = factory.Sequence(lambda n: n)
+
+
+# ──────────────────────────────────────────────
+# Lesson / curriculum factories
+# ──────────────────────────────────────────────
+
+
+class CourseSectionFactory(DjangoModelFactory):
+    class Meta:
+        model = CourseSection
+
+    course = factory.SubFactory(CourseFactory)
+    title = factory.Sequence(lambda n: f"Section {n}")
+    description = factory.Faker("sentence", nb_words=8)
+    order = factory.Sequence(lambda n: n)
+
+
+class LessonFactory(DjangoModelFactory):
+    class Meta:
+        model = Lesson
+
+    section = factory.SubFactory(CourseSectionFactory)
+    title = factory.Sequence(lambda n: f"Lesson {n}")
+    description = factory.Faker("sentence", nb_words=8)
+    lesson_type = Lesson.LessonType.VIDEO
+    order = factory.Sequence(lambda n: n)
+    is_preview = False
+    duration_seconds = 300
+    article_content = ""
