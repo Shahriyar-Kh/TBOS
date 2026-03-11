@@ -3,62 +3,84 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from apps.accounts.models import Profile
+from apps.core.validators import validate_file_size
 
 User = get_user_model()
 
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True, validators=[validate_password]
+class RegisterSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    username = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(
+        choices=[User.Role.STUDENT, User.Role.INSTRUCTOR],
+        default=User.Role.STUDENT,
+        required=False,
     )
-    password_confirm = serializers.CharField(write_only=True)
 
-    class Meta:
-        model = User
-        fields = [
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-            "password_confirm",
-            "role",
-        ]
-        extra_kwargs = {
-            "first_name": {"required": True},
-            "last_name": {"required": True},
-        }
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value.lower().strip()
+
+    def validate_username(self, value):
+        if value and User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        return value.strip()
 
     def validate(self, attrs):
-        if attrs["password"] != attrs.pop("password_confirm"):
+        if attrs["password"] != attrs["confirm_password"]:
             raise serializers.ValidationError(
-                {"password_confirm": "Passwords do not match."}
-            )
-        role = attrs.get("role", "student")
-        if role not in ("student", "instructor"):
-            raise serializers.ValidationError(
-                {"role": "Registration is allowed for student or instructor only."}
+                {"confirm_password": "Passwords do not match."}
             )
         return attrs
 
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class GoogleLoginSerializer(serializers.Serializer):
+    id_token = serializers.CharField()
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField()
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
+            "id",
             "avatar",
             "bio",
             "headline",
+            "country",
+            "city",
+            "timezone",
+            "phone_number",
             "website",
             "linkedin",
-            "twitter",
             "github",
-            "phone",
-            "city",
-            "country",
+            "twitter",
+            "skills",
+            "education",
+            "experience",
+            "profile_visibility",
+            "date_created",
+            "date_updated",
         ]
+        read_only_fields = ["id", "date_created", "date_updated"]
+
+    def validate_avatar(self, value):
+        if value:
+            validate_file_size(value)
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -69,35 +91,54 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
+            "username",
             "first_name",
             "last_name",
             "role",
-            "is_email_verified",
+            "is_verified",
+            "google_account",
+            "is_active",
             "date_joined",
+            "last_login",
             "profile",
         ]
-        read_only_fields = ["id", "email", "role", "is_email_verified", "date_joined"]
+        read_only_fields = [
+            "id",
+            "email",
+            "role",
+            "is_verified",
+            "google_account",
+            "is_active",
+            "date_joined",
+            "last_login",
+        ]
 
 
-class UserUpdateSerializer(serializers.ModelSerializer):
-    profile = ProfileSerializer()
-
+class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ["first_name", "last_name", "profile"]
+        model = Profile
+        fields = [
+            "avatar",
+            "bio",
+            "headline",
+            "country",
+            "city",
+            "timezone",
+            "phone_number",
+            "website",
+            "linkedin",
+            "github",
+            "twitter",
+            "skills",
+            "education",
+            "experience",
+            "profile_visibility",
+        ]
 
-    def update(self, instance, validated_data):
-        profile_data = validated_data.pop("profile", {})
-        instance.first_name = validated_data.get("first_name", instance.first_name)
-        instance.last_name = validated_data.get("last_name", instance.last_name)
-        instance.save()
-
-        profile = instance.profile
-        for attr, value in profile_data.items():
-            setattr(profile, attr, value)
-        profile.save()
-
-        return instance
+    def validate_avatar(self, value):
+        if value:
+            validate_file_size(value)
+        return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -114,8 +155,6 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    """Serializer for admin user management."""
-
     profile = ProfileSerializer(read_only=True)
 
     class Meta:
@@ -123,12 +162,15 @@ class AdminUserSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "email",
+            "username",
             "first_name",
             "last_name",
             "role",
             "is_active",
-            "is_email_verified",
+            "is_verified",
+            "google_account",
             "date_joined",
+            "last_login",
             "profile",
         ]
         read_only_fields = ["id", "email", "date_joined"]

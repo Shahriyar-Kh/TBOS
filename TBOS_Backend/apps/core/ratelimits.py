@@ -1,12 +1,11 @@
-"""
-Rate limiting decorators for sensitive endpoints.
-
-Uses django-ratelimit for view-level rate limiting
-on top of DRF's built-in throttle classes.
-"""
+"""Rate limiting helpers for sensitive endpoints."""
 
 from django_ratelimit.decorators import ratelimit
-from functools import wraps
+from rest_framework.throttling import AnonRateThrottle
+
+
+class AuthRateThrottle(AnonRateThrottle):
+    scope = "auth"
 
 
 def ratelimit_auth(func):

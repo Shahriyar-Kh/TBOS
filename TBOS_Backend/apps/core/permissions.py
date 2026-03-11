@@ -3,6 +3,7 @@ from rest_framework.permissions import BasePermission
 
 class IsAdmin(BasePermission):
     """Allow access only to admin users."""
+
     def has_permission(self, request, view):
         return (
             request.user
@@ -13,6 +14,7 @@ class IsAdmin(BasePermission):
 
 class IsInstructor(BasePermission):
     """Allow access only to instructor users."""
+
     def has_permission(self, request, view):
         return (
             request.user
@@ -23,6 +25,7 @@ class IsInstructor(BasePermission):
 
 class IsStudent(BasePermission):
     """Allow access only to student users."""
+
     def has_permission(self, request, view):
         return (
             request.user
@@ -33,6 +36,7 @@ class IsStudent(BasePermission):
 
 class IsAdminOrInstructor(BasePermission):
     """Allow access to admin or instructor users."""
+
     def has_permission(self, request, view):
         return (
             request.user
@@ -41,11 +45,10 @@ class IsAdminOrInstructor(BasePermission):
         )
 
 
-class IsOwnerOrAdmin(BasePermission):
-    """Object-level: allow owner or admin."""
+class IsOwner(BasePermission):
+    """Object-level permission allowing only the resource owner."""
+
     def has_object_permission(self, request, view, obj):
-        if request.user.role == "admin":
-            return True
         if hasattr(obj, "user"):
             return obj.user == request.user
         if hasattr(obj, "student"):
@@ -53,6 +56,15 @@ class IsOwnerOrAdmin(BasePermission):
         if hasattr(obj, "instructor"):
             return obj.instructor == request.user
         return False
+
+
+class IsOwnerOrAdmin(BasePermission):
+    """Object-level: allow owner or admin."""
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.role == "admin":
+            return True
+        return IsOwner().has_object_permission(request, view, obj)
 
 
 class IsEnrolledOrInstructor(BasePermission):

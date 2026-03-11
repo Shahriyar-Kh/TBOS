@@ -29,7 +29,8 @@ class APIRootView(APIView):
                 "docs": "/api/docs/",
                 "schema": "/api/schema/",
                 "endpoints": {
-                    "accounts": "/api/v1/accounts/",
+                    "auth": "/api/v1/auth/",
+                    "admin_users": "/api/v1/admin/users/",
                     "courses": "/api/v1/courses/",
                     "lessons": "/api/v1/lessons/",
                     "videos": "/api/v1/videos/",
