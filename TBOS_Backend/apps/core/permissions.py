@@ -67,7 +67,21 @@ class IsOwnerOrAdmin(BasePermission):
         return IsOwner().has_object_permission(request, view, obj)
 
 
-class IsEnrolledOrInstructor(BasePermission):
+class IsOwnerInstructor(BasePermission):
+    """Object-level permission: only the course's instructor owner can access."""
+
+    def has_object_permission(self, request, view, obj):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if request.user.role == "admin":
+            return True
+        return (
+            request.user.role == "instructor"
+            and getattr(obj, "instructor", None) == request.user
+        )
+
+
+
     """Allow enrolled students or the course instructor."""
     def has_object_permission(self, request, view, obj):
         user = request.user
