@@ -2,6 +2,7 @@ import factory
 from factory.django import DjangoModelFactory
 
 from apps.accounts.models import Profile, User
+from apps.courses.models import Category, Course, Language, LearningOutcome, Level, Requirement
 
 
 class UserFactory(DjangoModelFactory):
@@ -63,3 +64,65 @@ class ProfileFactory(DjangoModelFactory):
                 setattr(profile, key, value)
         profile.save()
         return profile
+
+
+# ──────────────────────────────────────────────
+# Course factories
+# ──────────────────────────────────────────────
+
+
+class CategoryFactory(DjangoModelFactory):
+    class Meta:
+        model = Category
+
+    name = factory.Sequence(lambda n: f"Category {n}")
+    icon = "fa-book"
+
+
+class LevelFactory(DjangoModelFactory):
+    class Meta:
+        model = Level
+
+    name = factory.Sequence(lambda n: f"Level {n}")
+
+
+class LanguageFactory(DjangoModelFactory):
+    class Meta:
+        model = Language
+
+    name = factory.Sequence(lambda n: f"Language {n}")
+
+
+class CourseFactory(DjangoModelFactory):
+    class Meta:
+        model = Course
+
+    instructor = factory.SubFactory(InstructorFactory)
+    category = factory.SubFactory(CategoryFactory)
+    level = factory.SubFactory(LevelFactory)
+    language = factory.SubFactory(LanguageFactory)
+    title = factory.Sequence(lambda n: f"Test Course {n}")
+    subtitle = factory.Faker("sentence", nb_words=6)
+    description = factory.Faker("paragraph", nb_sentences=3)
+    price = factory.LazyFunction(lambda: 49.99)
+    discount = factory.LazyFunction(lambda: 0.00)
+    status = Course.Status.DRAFT
+    is_free = False
+
+
+class LearningOutcomeFactory(DjangoModelFactory):
+    class Meta:
+        model = LearningOutcome
+
+    course = factory.SubFactory(CourseFactory)
+    text = factory.Faker("sentence", nb_words=8)
+    order = factory.Sequence(lambda n: n)
+
+
+class RequirementFactory(DjangoModelFactory):
+    class Meta:
+        model = Requirement
+
+    course = factory.SubFactory(CourseFactory)
+    text = factory.Faker("sentence", nb_words=6)
+    order = factory.Sequence(lambda n: n)
