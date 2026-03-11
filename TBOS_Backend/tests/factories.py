@@ -4,6 +4,7 @@ from factory.django import DjangoModelFactory
 from apps.accounts.models import Profile, User
 from apps.courses.models import Category, Course, Language, LearningOutcome, Level, Requirement
 from apps.lessons.models import CourseSection, Lesson
+from apps.videos.models import Video, YouTubePlaylistImport
 
 
 class UserFactory(DjangoModelFactory):
@@ -156,3 +157,37 @@ class LessonFactory(DjangoModelFactory):
     is_preview = False
     duration_seconds = 300
     article_content = ""
+
+# ──────────────────────────────────────────────
+# Video factories
+# ──────────────────────────────────────────────
+
+
+class VideoFactory(DjangoModelFactory):
+    class Meta:
+        model = Video
+
+    lesson = factory.SubFactory(LessonFactory)
+    course = factory.LazyAttribute(lambda obj: obj.lesson.section.course)
+    title = factory.Sequence(lambda n: f"Video {n}")
+    description = factory.Faker("sentence", nb_words=6)
+    order = factory.Sequence(lambda n: n)
+    source_type = Video.SourceType.YOUTUBE
+    youtube_id = factory.Sequence(lambda n: f"ytid{n:07d}")
+    thumbnail = factory.LazyAttribute(
+        lambda obj: f"https://img.youtube.com/vi/{obj.youtube_id}/hqdefault.jpg"
+    )
+    duration_seconds = 300
+    is_preview = False
+    is_published = True
+
+
+class YouTubePlaylistImportFactory(DjangoModelFactory):
+    class Meta:
+        model = YouTubePlaylistImport
+
+    course = factory.SubFactory(CourseFactory)
+    lesson = factory.SubFactory(LessonFactory)
+    playlist_url = "https://www.youtube.com/playlist?list=PLtest123"
+    status = YouTubePlaylistImport.ImportStatus.PENDING
+    initiated_by = factory.SubFactory(InstructorFactory)
