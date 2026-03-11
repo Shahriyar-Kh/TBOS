@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
@@ -9,6 +11,14 @@ class Category(TimeStampedModel):
     name = models.CharField(max_length=200, unique=True, db_index=True)
     icon = models.CharField(max_length=200, blank=True, default="")
     slug = models.SlugField(max_length=220, unique=True, blank=True)
+    description = models.TextField(blank=True, default="")
+    parent_category = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subcategories",
+    )
 
     class Meta:
         db_table = "categories"
@@ -82,8 +92,8 @@ class Course(TimeStampedModel):
     description = models.TextField()
     featured_image = models.URLField(max_length=500, blank=True, default="")
     promo_video_url = models.URLField(max_length=500, blank=True, default="")
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    discount = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    discount = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
@@ -91,12 +101,15 @@ class Course(TimeStampedModel):
         db_index=True,
     )
     is_free = models.BooleanField(default=False, db_index=True)
+    certificate_available = models.BooleanField(default=False)
     duration_hours = models.PositiveIntegerField(default=0, help_text="Total hours")
     total_lessons = models.PositiveIntegerField(default=0)
     total_enrollments = models.PositiveIntegerField(default=0)
     average_rating = models.DecimalField(
         max_digits=3, decimal_places=2, default=0.00
     )
+    rating_count = models.PositiveIntegerField(default=0)
+    published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "courses"
@@ -123,8 +136,10 @@ class Course(TimeStampedModel):
     @property
     def effective_price(self):
         if self.is_free:
-            return 0
-        return max(self.price - (self.price * self.discount / 100), 0)
+            return Decimal("0.00")
+        price = Decimal(str(self.price))
+        discount = Decimal(str(self.discount))
+        return max(price - (price * discount / Decimal("100")), Decimal("0.00"))
 
 
 class LearningOutcome(TimeStampedModel):
