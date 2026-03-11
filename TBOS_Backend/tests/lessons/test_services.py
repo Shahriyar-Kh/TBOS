@@ -115,5 +115,6 @@ class TestLessonServiceLessons:
         assert result.sections.count() == 1
 
     def test_get_course_curriculum_not_found(self, db):
-        with pytest.raises(Exception):
+        from apps.courses.models import Course
+        with pytest.raises(Course.DoesNotExist):
             LessonService.get_course_curriculum(slug="nonexistent-slug")
