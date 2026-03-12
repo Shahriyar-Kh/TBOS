@@ -6,6 +6,7 @@ from apps.courses.models import Category, Course, Language, LearningOutcome, Lev
 from apps.lessons.models import CourseSection, Lesson
 from apps.enrollments.models import Enrollment, LessonProgress, VideoProgress
 from apps.videos.models import Video, YouTubePlaylistImport
+from apps.quiz.models import Quiz, Question, Option, QuizAttempt, StudentAnswer
 
 
 class UserFactory(DjangoModelFactory):
@@ -234,3 +235,72 @@ class VideoProgressFactory(DjangoModelFactory):
     watch_time_seconds = 0
     last_position_seconds = 0
     is_completed = False
+
+
+# ──────────────────────────────────────────────
+# Quiz factories
+# ──────────────────────────────────────────────
+
+
+class QuizFactory(DjangoModelFactory):
+    class Meta:
+        model = Quiz
+
+    course = factory.SubFactory(CourseFactory)
+    lesson = factory.SubFactory(
+        LessonFactory,
+        lesson_type=Lesson.LessonType.QUIZ,
+    )
+    title = factory.Sequence(lambda n: f"Quiz {n}")
+    description = factory.Faker("sentence", nb_words=8)
+    time_limit_minutes = 30
+    max_attempts = 3
+    passing_score = 50
+    shuffle_questions = False
+    shuffle_options = False
+    is_active = True
+    order = factory.Sequence(lambda n: n)
+
+
+class QuestionFactory(DjangoModelFactory):
+    class Meta:
+        model = Question
+
+    quiz = factory.SubFactory(QuizFactory)
+    question_text = factory.Faker("sentence", nb_words=10)
+    question_type = Question.QuestionType.MCQ
+    points = 1
+    order = factory.Sequence(lambda n: n)
+    explanation = factory.Faker("sentence", nb_words=6)
+
+
+class OptionFactory(DjangoModelFactory):
+    class Meta:
+        model = Option
+
+    question = factory.SubFactory(QuestionFactory)
+    option_text = factory.Faker("sentence", nb_words=4)
+    is_correct = False
+    order = factory.Sequence(lambda n: n)
+
+
+class QuizAttemptFactory(DjangoModelFactory):
+    class Meta:
+        model = QuizAttempt
+
+    quiz = factory.SubFactory(QuizFactory)
+    student = factory.SubFactory(UserFactory)
+    attempt_number = 1
+    total_points = 0
+    total_questions = 0
+    status = QuizAttempt.Status.IN_PROGRESS
+
+
+class StudentAnswerFactory(DjangoModelFactory):
+    class Meta:
+        model = StudentAnswer
+
+    attempt = factory.SubFactory(QuizAttemptFactory)
+    question = factory.SubFactory(QuestionFactory)
+    selected_option = factory.SubFactory(OptionFactory)
+    is_correct = False

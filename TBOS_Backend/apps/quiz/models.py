@@ -7,13 +7,15 @@ from apps.lessons.models import Lesson
 
 
 class Quiz(TimeStampedModel):
+    """Defines quiz configuration for a lesson."""
+
     course = models.ForeignKey(
         Course, on_delete=models.CASCADE, related_name="quizzes"
     )
-    lesson = models.ForeignKey(
+    lesson = models.OneToOneField(
         Lesson,
         on_delete=models.CASCADE,
-        related_name="quizzes",
+        related_name="quiz",
         null=True,
         blank=True,
     )
@@ -23,8 +25,12 @@ class Quiz(TimeStampedModel):
         null=True, blank=True, help_text="Time limit in minutes. Null = unlimited."
     )
     max_attempts = models.PositiveIntegerField(default=1)
-    pass_percentage = models.PositiveIntegerField(default=50)
-    is_published = models.BooleanField(default=False)
+    passing_score = models.PositiveIntegerField(
+        default=50, help_text="Minimum percentage to pass."
+    )
+    shuffle_questions = models.BooleanField(default=False)
+    shuffle_options = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -39,26 +45,39 @@ class Quiz(TimeStampedModel):
 
 
 class Question(TimeStampedModel):
+    """Stores quiz questions."""
+
+    class QuestionType(models.TextChoices):
+        MCQ = "mcq", "Multiple Choice"
+
     quiz = models.ForeignKey(
         Quiz, on_delete=models.CASCADE, related_name="questions"
     )
-    text = models.TextField()
+    question_text = models.TextField()
+    question_type = models.CharField(
+        max_length=20,
+        choices=QuestionType.choices,
+        default=QuestionType.MCQ,
+    )
     order = models.PositiveIntegerField(default=0)
     points = models.PositiveIntegerField(default=1)
+    explanation = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "questions"
         ordering = ["order"]
 
     def __str__(self):
-        return self.text[:80]
+        return self.question_text[:80]
 
 
 class Option(TimeStampedModel):
+    """Stores answer options for a question. Only one option should be correct."""
+
     question = models.ForeignKey(
         Question, on_delete=models.CASCADE, related_name="options"
     )
-    text = models.CharField(max_length=500)
+    option_text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
 
@@ -67,10 +86,17 @@ class Option(TimeStampedModel):
         ordering = ["order"]
 
     def __str__(self):
-        return self.text
+        return self.option_text
 
 
 class QuizAttempt(TimeStampedModel):
+    """Tracks quiz attempts by students."""
+
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In Progress"
+        SUBMITTED = "submitted", "Submitted"
+        EXPIRED = "expired", "Expired"
+
     quiz = models.ForeignKey(
         Quiz, on_delete=models.CASCADE, related_name="attempts"
     )
@@ -79,32 +105,44 @@ class QuizAttempt(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="quiz_attempts",
     )
+    attempt_number = models.PositiveIntegerField(default=1)
     score = models.PositiveIntegerField(default=0)
     total_points = models.PositiveIntegerField(default=0)
+    total_questions = models.PositiveIntegerField(default=0)
+    correct_answers = models.PositiveIntegerField(default=0)
     percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     passed = models.BooleanField(default=False)
-    started_at = models.DateTimeField(auto_now_add=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-    is_completed = models.BooleanField(default=False)
-    current_question_index = models.PositiveIntegerField(default=0)
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.IN_PROGRESS,
+    )
 
     class Meta:
         db_table = "quiz_attempts"
         indexes = [
             models.Index(fields=["quiz", "student"]),
-            models.Index(fields=["student", "is_completed"]),
+            models.Index(fields=["student", "status"]),
         ]
 
     def __str__(self):
         return f"{self.student.email} — {self.quiz.title} — {self.percentage}%"
 
+    @property
+    def is_completed(self):
+        return self.status in (self.Status.SUBMITTED, self.Status.EXPIRED)
 
-class QuizAnswer(TimeStampedModel):
+
+class StudentAnswer(TimeStampedModel):
+    """Stores student responses for a quiz attempt."""
+
     attempt = models.ForeignKey(
         QuizAttempt, on_delete=models.CASCADE, related_name="answers"
     )
     question = models.ForeignKey(
-        Question, on_delete=models.CASCADE, related_name="quiz_answers"
+        Question, on_delete=models.CASCADE, related_name="student_answers"
     )
     selected_option = models.ForeignKey(
         Option, on_delete=models.SET_NULL, null=True, blank=True
@@ -112,7 +150,7 @@ class QuizAnswer(TimeStampedModel):
     is_correct = models.BooleanField(default=False)
 
     class Meta:
-        db_table = "quiz_answers"
+        db_table = "student_answers"
         unique_together = [("attempt", "question")]
 
     def __str__(self):

@@ -7,6 +7,7 @@ router = SimpleRouter()
 router.register(r"instructor/quizzes", views.InstructorQuizViewSet, basename="instructor-quizzes")
 router.register(r"instructor/questions", views.InstructorQuestionViewSet, basename="instructor-questions")
 router.register(r"instructor/options", views.InstructorOptionViewSet, basename="instructor-options")
+router.register(r"admin/quizzes", views.AdminQuizViewSet, basename="admin-quizzes")
 router.register(r"student", views.StudentQuizViewSet, basename="student-quizzes")
 
 urlpatterns = [
