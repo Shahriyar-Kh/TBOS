@@ -7,6 +7,7 @@ from apps.lessons.models import CourseSection, Lesson
 from apps.enrollments.models import Enrollment, LessonProgress, VideoProgress
 from apps.videos.models import Video, YouTubePlaylistImport
 from apps.quiz.models import Quiz, Question, Option, QuizAttempt, StudentAnswer
+from apps.assignments.models import Assignment, AssignmentGrade, AssignmentSubmission
 
 
 class UserFactory(DjangoModelFactory):
@@ -304,3 +305,52 @@ class StudentAnswerFactory(DjangoModelFactory):
     question = factory.SubFactory(QuestionFactory)
     selected_option = factory.SubFactory(OptionFactory)
     is_correct = False
+
+
+# ──────────────────────────────────────────────
+# Assignment factories
+# ──────────────────────────────────────────────
+
+
+class AssignmentFactory(DjangoModelFactory):
+    class Meta:
+        model = Assignment
+
+    course = factory.SubFactory(CourseFactory)
+    lesson = factory.SubFactory(
+        LessonFactory,
+        lesson_type=Lesson.LessonType.ASSIGNMENT,
+    )
+    title = factory.Sequence(lambda n: f"Assignment {n}")
+    description = factory.Faker("paragraph", nb_sentences=3)
+    instructions = factory.Faker("paragraph", nb_sentences=5)
+    max_score = 100
+    submission_type = Assignment.SubmissionType.FILE_AND_TEXT
+    allow_resubmission = True
+    max_attempts = 3
+    is_published = True
+    order = factory.Sequence(lambda n: n)
+
+
+class AssignmentSubmissionFactory(DjangoModelFactory):
+    class Meta:
+        model = AssignmentSubmission
+
+    assignment = factory.SubFactory(AssignmentFactory)
+    student = factory.SubFactory(UserFactory)
+    submission_text = factory.Faker("paragraph", nb_sentences=2)
+    file_url = "https://storage.example.com/submissions/file.pdf"
+    attempt_number = 1
+    status = AssignmentSubmission.Status.SUBMITTED
+    submitted_at = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now())
+
+
+class AssignmentGradeFactory(DjangoModelFactory):
+    class Meta:
+        model = AssignmentGrade
+
+    submission = factory.SubFactory(AssignmentSubmissionFactory)
+    grader = factory.SubFactory(InstructorFactory)
+    score = 85
+    feedback = factory.Faker("paragraph", nb_sentences=2)
+    graded_at = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now())
