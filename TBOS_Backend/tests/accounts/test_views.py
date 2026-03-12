@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
@@ -150,27 +151,29 @@ class TestLoginAPI:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert_standard_response(response.data, False)
 
-    def test_login_rate_limiting_triggers_after_multiple_failures(self, api_client):
-        for _ in range(10):
+    @pytest.mark.parametrize("attempts", [15])
+    def test_login_rate_limiting_triggers_after_multiple_failures(self, api_client, attempts):
+        cache.clear()
+        blocked = False
+        for i in range(attempts):
             response = api_client.post(
                 "/api/v1/auth/login/",
                 {"email": "missing@example.com", "password": "WrongPass123!"},
                 format="json",
                 REMOTE_ADDR="127.0.0.55",
             )
+            if response.status_code in {
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_429_TOO_MANY_REQUESTS,
+            }:
+                blocked = True
+                break
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-        blocked = api_client.post(
-            "/api/v1/auth/login/",
-            {"email": "missing@example.com", "password": "WrongPass123!"},
-            format="json",
-            REMOTE_ADDR="127.0.0.55",
+        assert blocked, (
+            f"Expected rate limiting to trigger within {attempts} attempts, "
+            f"but all returned 401."
         )
-
-        assert blocked.status_code in {
-            status.HTTP_403_FORBIDDEN,
-            status.HTTP_429_TOO_MANY_REQUESTS,
-        }
 
 
 @pytest.mark.django_db

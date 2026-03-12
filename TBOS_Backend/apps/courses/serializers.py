@@ -348,5 +348,71 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
-# Keep backward-compatible alias
-CourseCreateUpdateSerializer = CourseUpdateSerializer
+class CourseCreateUpdateSerializer(serializers.ModelSerializer):
+    """Combined create/update serializer used by tests and views."""
+
+    category_id = serializers.UUIDField(write_only=True)
+    level_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    language_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = Course
+        fields = [
+            "title",
+            "subtitle",
+            "description",
+            "thumbnail",
+            "featured_image",
+            "promo_video_url",
+            "price",
+            "discount_price",
+            "discount",
+            "is_free",
+            "status",
+            "certificate_available",
+            "duration_hours",
+            "category_id",
+            "level_id",
+            "language_id",
+        ]
+
+    def validate_title(self, value):
+        if len(value.strip()) < 5:
+            raise serializers.ValidationError(
+                "Title must be at least 5 characters long."
+            )
+        return value.strip()
+
+    def validate_price(self, value):
+        if value < Decimal("0"):
+            raise serializers.ValidationError("Price cannot be negative.")
+        return value
+
+    def validate_discount_price(self, value):
+        if value < Decimal("0"):
+            raise serializers.ValidationError("Discount price cannot be negative.")
+        return value
+
+    def validate(self, attrs):
+        instance = getattr(self, "instance", None)
+        price = attrs.get("price", instance.price if instance else Decimal("0"))
+        discount_price = attrs.get(
+            "discount_price",
+            instance.discount_price if instance else Decimal("0"),
+        )
+        if discount_price and discount_price >= price and price > Decimal("0"):
+            raise serializers.ValidationError(
+                {"discount_price": "Discount price must be less than the original price."}
+            )
+        return attrs
+
+    def validate_category_id(self, value):
+        if not Category.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Category not found.")
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if request and hasattr(request, "user"):
+            validated_data["instructor"] = request.user
+        return super().create(validated_data)
