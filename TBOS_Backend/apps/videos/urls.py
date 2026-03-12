@@ -1,9 +1,9 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from apps.videos import views
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r"public", views.PublicVideoViewSet, basename="public-videos")
 router.register(
     r"instructor", views.InstructorVideoViewSet, basename="instructor-videos"

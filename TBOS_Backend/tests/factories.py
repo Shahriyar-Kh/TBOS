@@ -4,12 +4,14 @@ from factory.django import DjangoModelFactory
 from apps.accounts.models import Profile, User
 from apps.courses.models import Category, Course, Language, LearningOutcome, Level, Requirement
 from apps.lessons.models import CourseSection, Lesson
+from apps.enrollments.models import Enrollment, LessonProgress, VideoProgress
 from apps.videos.models import Video, YouTubePlaylistImport
 
 
 class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
+        skip_postgeneration_save = True
 
     email = factory.Sequence(lambda n: f"user{n}@example.com")
     username = factory.Sequence(lambda n: f"user{n}")
@@ -20,6 +22,11 @@ class UserFactory(DjangoModelFactory):
     is_verified = False
     google_account = False
     password = factory.PostGenerationMethodCall("set_password", "StrongPass123!")
+
+    @classmethod
+    def _after_postgeneration(cls, instance, create, results=None):
+        if create:
+            instance.save()
 
 
 class InstructorFactory(UserFactory):
@@ -191,3 +198,39 @@ class YouTubePlaylistImportFactory(DjangoModelFactory):
     playlist_url = "https://www.youtube.com/playlist?list=PLtest123"
     status = YouTubePlaylistImport.ImportStatus.PENDING
     initiated_by = factory.SubFactory(InstructorFactory)
+
+
+# ──────────────────────────────────────────────
+# Enrollment factories
+# ──────────────────────────────────────────────
+
+
+class EnrollmentFactory(DjangoModelFactory):
+    class Meta:
+        model = Enrollment
+
+    student = factory.SubFactory(UserFactory)
+    course = factory.SubFactory(CourseFactory)
+    enrollment_status = Enrollment.EnrollmentStatus.ACTIVE
+    is_active = True
+
+
+class LessonProgressFactory(DjangoModelFactory):
+    class Meta:
+        model = LessonProgress
+
+    enrollment = factory.SubFactory(EnrollmentFactory)
+    student = factory.LazyAttribute(lambda obj: obj.enrollment.student)
+    lesson = factory.SubFactory(LessonFactory)
+    is_completed = False
+
+
+class VideoProgressFactory(DjangoModelFactory):
+    class Meta:
+        model = VideoProgress
+
+    student = factory.SubFactory(UserFactory)
+    video = factory.SubFactory(VideoFactory)
+    watch_time_seconds = 0
+    last_position_seconds = 0
+    is_completed = False

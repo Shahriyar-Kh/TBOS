@@ -1,9 +1,9 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from apps.analytics import views
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(
     r"instructor", views.InstructorCourseAnalyticsViewSet, basename="instructor-analytics"
 )

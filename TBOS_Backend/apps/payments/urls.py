@@ -1,9 +1,9 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from apps.payments import views
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r"admin", views.AdminPaymentViewSet, basename="admin-payments")
 router.register(r"billing", views.BillingDetailsViewSet, basename="billing-details")
 
