@@ -8,6 +8,7 @@ from apps.enrollments.models import Enrollment, LessonProgress, VideoProgress
 from apps.videos.models import Video, YouTubePlaylistImport
 from apps.quiz.models import Quiz, Question, Option, QuizAttempt, StudentAnswer
 from apps.assignments.models import Assignment, AssignmentGrade, AssignmentSubmission
+from apps.reviews.models import Review, ReviewResponse
 
 
 class UserFactory(DjangoModelFactory):
@@ -354,3 +355,28 @@ class AssignmentGradeFactory(DjangoModelFactory):
     score = 85
     feedback = factory.Faker("paragraph", nb_sentences=2)
     graded_at = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now())
+
+
+# ──────────────────────────────────────────────
+# Review factories
+# ──────────────────────────────────────────────
+
+
+class ReviewFactory(DjangoModelFactory):
+    class Meta:
+        model = Review
+
+    student = factory.SubFactory(UserFactory)
+    course = factory.SubFactory(CourseFactory)
+    rating = 4
+    review_text = factory.Faker("paragraph", nb_sentences=3)
+    status = Review.Status.PUBLISHED
+
+
+class ReviewResponseFactory(DjangoModelFactory):
+    class Meta:
+        model = ReviewResponse
+
+    review = factory.SubFactory(ReviewFactory)
+    instructor = factory.LazyAttribute(lambda obj: obj.review.course.instructor)
+    response_text = factory.Faker("paragraph", nb_sentences=2)
