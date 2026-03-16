@@ -3,13 +3,8 @@ from django.urls import path
 from apps.notifications import views
 
 urlpatterns = [
-    path("", views.MyNotificationsView.as_view(), name="my-notifications"),
-    path("unread-count/", views.UnreadCountView.as_view(), name="unread-count"),
-    path("<uuid:pk>/read/", views.MarkReadView.as_view(), name="mark-read"),
-    path("mark-all-read/", views.MarkAllReadView.as_view(), name="mark-all-read"),
-    path(
-        "admin/bulk/",
-        views.AdminBulkNotificationView.as_view(),
-        name="admin-bulk-notification",
-    ),
+    path("", views.NotificationListView.as_view(), name="notification-list"),
+    path("<uuid:pk>/read/", views.NotificationReadView.as_view(), name="notification-read"),
+    path("read-all/", views.NotificationReadAllView.as_view(), name="notification-read-all"),
+    path("preferences/", views.NotificationPreferenceView.as_view(), name="notification-preferences"),
 ]

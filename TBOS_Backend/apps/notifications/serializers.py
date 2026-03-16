@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.notifications.models import Notification
+from apps.notifications.models import Notification, NotificationPreference
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -8,26 +8,28 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = [
             "id",
-            "notification_type",
             "title",
             "message",
+            "notification_type",
+            "reference_id",
             "is_read",
-            "action_url",
             "created_at",
         ]
-        read_only_fields = ["id", "notification_type", "title", "message", "action_url", "created_at"]
+        read_only_fields = fields
 
 
-class BulkNotificationSerializer(serializers.Serializer):
-    """Admin: send notification to all users or a role group."""
-    notification_type = serializers.ChoiceField(
-        choices=Notification.NotificationType.choices,
-        default=Notification.NotificationType.ANNOUNCEMENT,
-    )
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            "email_notifications_enabled",
+            "in_app_notifications_enabled",
+            "course_updates",
+            "assignment_notifications",
+            "quiz_notifications",
+        ]
+
+
+class BroadcastNotificationSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=300)
     message = serializers.CharField()
-    target_role = serializers.ChoiceField(
-        choices=["all", "student", "instructor"],
-        default="all",
-    )
-    action_url = serializers.CharField(max_length=500, required=False, default="")
