@@ -1,111 +1,112 @@
+from django.http import FileResponse
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.core.permissions import IsStudent, IsAdmin
 from apps.certificates.models import Certificate
 from apps.certificates.serializers import (
     CertificateSerializer,
-    VerifyCertificateSerializer,
+    CertificateVerificationSerializer,
 )
-from apps.enrollments.models import Enrollment
+from apps.certificates.services.certificate_service import CertificateService
+from apps.core.exceptions import api_error, api_success
+from apps.core.permissions import IsAdmin, IsStudent
 
 
 class MyCertificatesView(generics.ListAPIView):
-    """
-    GET /api/v1/certificates/my/
-    List certificates for the authenticated student.
-    """
+    """GET /api/v1/certificates/my/"""
+
     serializer_class = CertificateSerializer
     permission_classes = [IsAuthenticated, IsStudent]
 
     def get_queryset(self):
-        return Certificate.objects.filter(
-            student=self.request.user
-        ).select_related("course")
+        return CertificateService.get_student_certificates(self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return api_success(data=serializer.data, message="Certificates retrieved.")
 
 
-class RequestCertificateView(APIView):
-    """
-    POST /api/v1/certificates/request/
-    Request a certificate for a completed course.
-    """
+class CertificateDownloadView(APIView):
+    """GET /api/v1/certificates/{id}/download/"""
+
     permission_classes = [IsAuthenticated, IsStudent]
 
-    def post(self, request):
-        course_id = request.data.get("course_id")
-        if not course_id:
-            return Response(
-                {"detail": "course_id is required."},
-                status=status.HTTP_400_BAD_REQUEST,
+    def get(self, request, pk):
+        certificate = Certificate.objects.select_related("student", "course").filter(id=pk).first()
+        if not certificate:
+            return api_error(
+                message="Certificate not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        enrollment = Enrollment.objects.filter(
-            student=request.user,
-            course_id=course_id,
-            completed_at__isnull=False,
-        ).first()
-
-        if not enrollment:
-            return Response(
-                {"detail": "Course not completed yet."},
-                status=status.HTTP_400_BAD_REQUEST,
+        if certificate.student_id != request.user.id:
+            return api_error(
+                message="You do not have access to this certificate.",
+                status_code=status.HTTP_403_FORBIDDEN,
             )
 
-        cert, created = Certificate.objects.get_or_create(
-            student=request.user,
-            course_id=course_id,
-        )
+        pdf_path = CertificateService.get_certificate_pdf_path(certificate)
+        if not pdf_path.exists():
+            CertificateService.generate_certificate_pdf(certificate)
 
-        if not created:
-            return Response(
-                {"detail": "Certificate already issued."},
-                status=status.HTTP_400_BAD_REQUEST,
+        if not pdf_path.exists():
+            return api_error(
+                message="Certificate file is not available.",
+                status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        return Response(
-            CertificateSerializer(cert).data,
-            status=status.HTTP_201_CREATED,
+        return FileResponse(
+            open(pdf_path, "rb"),
+            as_attachment=True,
+            filename=f"{certificate.certificate_number}.pdf",
+            content_type="application/pdf",
         )
 
 
 class VerifyCertificateView(APIView):
-    """
-    POST /api/v1/certificates/verify/
-    Public endpoint to verify a certificate by its number.
-    """
+    """GET /api/v1/certificates/verify/{verification_code}/"""
+
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        serializer = VerifyCertificateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            cert = Certificate.objects.select_related(
-                "student", "course"
-            ).get(
-                certificate_number=serializer.validated_data["certificate_number"]
-            )
-        except Certificate.DoesNotExist:
-            return Response(
-                {"valid": False, "detail": "Certificate not found."},
-                status=status.HTTP_404_NOT_FOUND,
+    def get(self, request, verification_code):
+        result = CertificateService.verify_certificate(verification_code)
+        if not result["is_valid"]:
+            return api_error(
+                message="Certificate not found or invalid.",
+                status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        return Response(
-            {
-                "valid": True,
-                "certificate": CertificateSerializer(cert).data,
-            }
+        serializer = CertificateVerificationSerializer(result)
+        return api_success(
+            data=serializer.data,
+            message="Certificate verified successfully.",
         )
 
 
 class AdminCertificateListView(generics.ListAPIView):
-    """
-    GET /api/v1/certificates/admin/
-    Admin view of all certificates.
-    """
+    """GET /api/v1/admin/certificates/"""
+
     serializer_class = CertificateSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
     queryset = Certificate.objects.select_related("student", "course").all()
+
+    def list(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_queryset(), many=True)
+        return api_success(data=serializer.data, message="Certificates retrieved.")
+
+
+class AdminCertificateDeleteView(APIView):
+    """DELETE /api/v1/admin/certificates/{id}/"""
+
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def delete(self, request, pk):
+        certificate = Certificate.objects.filter(id=pk).first()
+        if not certificate:
+            return api_error(
+                message="Certificate not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        certificate.delete()
+        return api_success(data={}, message="Certificate deleted successfully.")

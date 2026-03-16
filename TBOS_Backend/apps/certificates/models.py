@@ -2,12 +2,14 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import TimeStampedModel
 from apps.courses.models import Course
 
 
 def generate_certificate_number():
+    """Kept for backward compatibility with historical migrations."""
     return f"TBOS-{uuid.uuid4().hex[:8].upper()}"
 
 
@@ -16,26 +18,35 @@ class Certificate(TimeStampedModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="certificates",
+        db_index=True,
     )
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
         related_name="certificates",
+        db_index=True,
     )
     certificate_number = models.CharField(
         max_length=50,
         unique=True,
-        default=generate_certificate_number,
         db_index=True,
     )
-    issued_at = models.DateTimeField(auto_now_add=True)
-    pdf_url = models.URLField(max_length=500, blank=True, default="")
+    issue_date = models.DateField(default=timezone.now)
+    verification_code = models.CharField(max_length=128, unique=True, db_index=True)
+    certificate_url = models.URLField(max_length=500, blank=True, default="")
 
     class Meta:
         db_table = "certificates"
-        unique_together = [("student", "course")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "course"],
+                name="unique_certificate_per_student_course",
+            ),
+        ]
         indexes = [
-            models.Index(fields=["student", "course"]),
+            models.Index(fields=["student"], name="cert_student_idx"),
+            models.Index(fields=["course"], name="cert_course_idx"),
+            models.Index(fields=["verification_code"], name="cert_verify_code_idx"),
         ]
 
     def __str__(self):

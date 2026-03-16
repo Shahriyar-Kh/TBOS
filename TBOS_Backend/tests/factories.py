@@ -9,6 +9,7 @@ from apps.videos.models import Video, YouTubePlaylistImport
 from apps.quiz.models import Quiz, Question, Option, QuizAttempt, StudentAnswer
 from apps.assignments.models import Assignment, AssignmentGrade, AssignmentSubmission
 from apps.reviews.models import Review, ReviewResponse
+from apps.certificates.models import Certificate
 
 
 class UserFactory(DjangoModelFactory):
@@ -380,3 +381,20 @@ class ReviewResponseFactory(DjangoModelFactory):
     review = factory.SubFactory(ReviewFactory)
     instructor = factory.LazyAttribute(lambda obj: obj.review.course.instructor)
     response_text = factory.Faker("paragraph", nb_sentences=2)
+
+
+# ──────────────────────────────────────────────
+# Certificate factories
+# ──────────────────────────────────────────────
+
+
+class CertificateFactory(DjangoModelFactory):
+    class Meta:
+        model = Certificate
+
+    student = factory.SubFactory(UserFactory)
+    course = factory.SubFactory(CourseFactory)
+    certificate_number = factory.Sequence(lambda n: f"TBOS-2026-{n + 1:06d}")
+    verification_code = factory.Sequence(lambda n: f"verify-code-{n + 1}")
+    issue_date = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now().date())
+    certificate_url = "https://tbos.com/api/v1/certificates/fake/download/"
