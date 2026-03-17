@@ -1,104 +1,148 @@
-from django.contrib.auth import get_user_model
-from django.db.models import Sum
-from rest_framework import generics, status, viewsets
+from django.db.models import Count, Sum
+from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.pagination import StandardPagination
-from apps.core.permissions import IsAdmin, IsAdminOrInstructor
-from apps.analytics.models import CourseAnalytics, UserActivity
+from apps.analytics.models import CourseAnalytics
 from apps.analytics.serializers import (
+    AdminAnalyticsSerializer,
     CourseAnalyticsSerializer,
-    PlatformStatsSerializer,
+    InstructorAnalyticsSerializer,
+    RevenueAnalyticsSerializer,
+    StudentAnalyticsSerializer,
     TrackActivitySerializer,
-    UserActivitySerializer,
 )
+from apps.analytics.services.analytics_service import (
+    generate_learning_insights,
+    get_admin_dashboard,
+    get_instructor_dashboard,
+    get_student_dashboard,
+    record_user_activity,
+    update_course_analytics,
+)
+from apps.core.exceptions import api_error, api_success
+from apps.core.permissions import IsAdmin, IsAdminOrInstructor, IsStudent
 from apps.courses.models import Course
-from apps.enrollments.models import Enrollment
 from apps.payments.models import Order
 
-User = get_user_model()
+
+class StudentDashboardView(APIView):
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    def get(self, request):
+        data = get_student_dashboard(request.user)
+        payload = {
+            "overview": StudentAnalyticsSerializer(data["overview"]).data,
+            "insights": data["insights"],
+        }
+        return api_success(data=payload, message="Student analytics fetched successfully.")
 
 
-class TrackActivityView(APIView):
-    """
-    POST /api/v1/analytics/track/
-    Log a user activity event.
-    """
+class InstructorDashboardView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def get(self, request):
+        if request.user.role == "admin":
+            return api_error(
+                errors={"detail": "Admin users must use admin analytics endpoints."},
+                message="Invalid role for this endpoint.",
+                status_code=403,
+            )
+        data = get_instructor_dashboard(request.user)
+        serializer = InstructorAnalyticsSerializer(data)
+        return api_success(data=serializer.data, message="Instructor analytics fetched successfully.")
+
+
+class InstructorCourseAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
+
+    def get(self, request, course_id):
+        course = get_object_or_404(Course.objects.select_related("instructor"), id=course_id)
+        if request.user.role == "instructor" and course.instructor_id != request.user.id:
+            return api_error(
+                errors={"detail": "You can only access analytics for your own courses."},
+                message="Forbidden.",
+                status_code=403,
+            )
+
+        update_course_analytics(course_id=course.id)
+        analytics = (
+            CourseAnalytics.objects.filter(course=course)
+            .select_related("course")
+            .order_by("-last_updated")
+            .first()
+        )
+        if analytics is None:
+            return api_success(data={}, message="No analytics available for this course yet.")
+
+        serializer = CourseAnalyticsSerializer(analytics)
+        return api_success(data=serializer.data, message="Course analytics fetched successfully.")
+
+
+class AdminDashboardView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+
+        data = get_admin_dashboard(start_date=start_date or None, end_date=end_date or None)
+        serializer = AdminAnalyticsSerializer(data)
+
+        return api_success(
+            data={
+                **serializer.data,
+                "insights": generate_learning_insights(),
+            },
+            message="Admin analytics fetched successfully.",
+        )
+
+
+class AdminRevenueAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+
+        revenue_qs = Order.objects.filter(order_status=Order.OrderStatus.COMPLETED)
+        if start_date:
+            revenue_qs = revenue_qs.filter(created_at__date__gte=start_date)
+        if end_date:
+            revenue_qs = revenue_qs.filter(created_at__date__lte=end_date)
+
+        aggregate = revenue_qs.aggregate(total_revenue=Sum("amount"), total_orders=Count("id"))
+        total_revenue = aggregate["total_revenue"] or 0
+        total_orders = aggregate["total_orders"] or 0
+
+        payload = RevenueAnalyticsSerializer(
+            {
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_revenue": total_revenue,
+                "total_orders": total_orders,
+                "average_order_value": (total_revenue / total_orders) if total_orders else 0,
+            }
+        ).data
+
+        return api_success(data=payload, message="Revenue analytics fetched successfully.")
+
+
+class RecordUserActivityView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = TrackActivitySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
 
-        UserActivity.objects.create(
+        activity = record_user_activity(
             user=request.user,
-            event_type=data["event_type"],
-            course_id=data.get("course_id"),
-            video_id=data.get("video_id"),
-            metadata=data.get("metadata", {}),
-        )
-        return Response(
-            {"success": True}, status=status.HTTP_201_CREATED
+            activity_type=serializer.validated_data["activity_type"],
+            reference_id=serializer.validated_data.get("reference_id"),
         )
 
-
-class InstructorCourseAnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    /api/v1/analytics/instructor/
-    Instructor analytics for their courses.
-    """
-    serializer_class = CourseAnalyticsSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrInstructor]
-
-    def get_queryset(self):
-        user = self.request.user
-        qs = CourseAnalytics.objects.select_related("course")
-        if user.role == "instructor":
-            qs = qs.filter(course__instructor=user)
-        return qs
-
-
-class AdminPlatformStatsView(APIView):
-    """
-    GET /api/v1/analytics/admin/platform-stats/
-    High-level platform metrics.
-    """
-    permission_classes = [IsAuthenticated, IsAdmin]
-
-    def get(self, request):
-        stats = {
-            "total_users": User.objects.count(),
-            "total_students": User.objects.filter(role="student").count(),
-            "total_instructors": User.objects.filter(role="instructor").count(),
-            "total_courses": Course.objects.filter(
-                status=Course.Status.PUBLISHED
-            ).count(),
-            "total_enrollments": Enrollment.objects.filter(is_active=True).count(),
-            "total_revenue": Order.objects.filter(
-                order_status=Order.OrderStatus.COMPLETED
-            ).aggregate(total=Sum("amount"))["total"]
-            or 0,
-        }
-        return Response(PlatformStatsSerializer(stats).data)
-
-
-class AdminUserActivityViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    /api/v1/analytics/admin/activities/
-    """
-    serializer_class = UserActivitySerializer
-    permission_classes = [IsAuthenticated, IsAdmin]
-    pagination_class = StandardPagination
-
-    def get_queryset(self):
-        qs = UserActivity.objects.select_related("user", "course")
-        user_id = self.request.query_params.get("user")
-        if user_id:
-            qs = qs.filter(user_id=user_id)
-        event_type = self.request.query_params.get("event_type")
-        if event_type:
-            qs = qs.filter(event_type=event_type)
-        return qs
+        return api_success(
+            data={"activity_id": str(activity.id)},
+            message="User activity recorded successfully.",
+            status_code=201,
+        )

@@ -1,30 +1,40 @@
 from celery import shared_task
-from django.db.models import Avg, Sum, Count
+
+from apps.analytics.services.realtime_service import publish_admin_dashboard_update
+from apps.analytics.services.analytics_service import (
+    get_admin_dashboard,
+    update_course_analytics as update_course_analytics_service,
+)
+
+
+@shared_task
+def update_course_analytics_task():
+    """Periodic task to refresh per-course analytics snapshots."""
+    updated = update_course_analytics_service()
+    publish_admin_dashboard_update({"updated_courses": len(updated), "source": "celery"})
+    return {"updated_courses": len(updated)}
+
+
+@shared_task
+def aggregate_platform_metrics_task():
+    """Periodic task to aggregate platform-level analytics for admin dashboards."""
+    dashboard = get_admin_dashboard()
+    publish_admin_dashboard_update(
+        {
+            "total_users": dashboard["total_users"],
+            "total_courses": dashboard["total_courses"],
+            "total_revenue": str(dashboard["total_revenue"]),
+            "source": "celery",
+        }
+    )
+    return {
+        "total_users": dashboard["total_users"],
+        "total_courses": dashboard["total_courses"],
+        "total_revenue": str(dashboard["total_revenue"]),
+    }
 
 
 @shared_task
 def update_course_analytics():
-    """Periodic task to recalculate aggregated course analytics."""
-    from apps.analytics.models import CourseAnalytics
-    from apps.courses.models import Course
-    from apps.enrollments.models import Enrollment
-    from apps.payments.models import Order
-
-    for course in Course.objects.filter(status=Course.Status.PUBLISHED):
-        enrollments = Enrollment.objects.filter(course=course, is_active=True)
-        analytics, _ = CourseAnalytics.objects.get_or_create(course=course)
-
-        analytics.total_completions = enrollments.filter(
-            completed_at__isnull=False
-        ).count()
-        analytics.avg_completion_percent = (
-            enrollments.aggregate(avg=Avg("progress_percent"))["avg"] or 0
-        )
-        analytics.total_revenue = (
-            Order.objects.filter(
-                course=course,
-                order_status=Order.OrderStatus.COMPLETED,
-            ).aggregate(total=Sum("amount"))["total"]
-            or 0
-        )
-        analytics.save()
+    """Backward-compatible alias for older Celery Beat schedule names."""
+    return update_course_analytics_task()

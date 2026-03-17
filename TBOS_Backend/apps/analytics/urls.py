@@ -1,22 +1,16 @@
-from django.urls import path, include
-from rest_framework.routers import SimpleRouter
+from django.urls import path
 
 from apps.analytics import views
 
-router = SimpleRouter()
-router.register(
-    r"instructor", views.InstructorCourseAnalyticsViewSet, basename="instructor-analytics"
-)
-router.register(
-    r"admin/activities", views.AdminUserActivityViewSet, basename="admin-activities"
-)
-
 urlpatterns = [
-    path("track/", views.TrackActivityView.as_view(), name="track-activity"),
+    path("activity/", views.RecordUserActivityView.as_view(), name="record-activity"),
+    path("student/dashboard/", views.StudentDashboardView.as_view(), name="student-dashboard"),
+    path("instructor/dashboard/", views.InstructorDashboardView.as_view(), name="instructor-dashboard"),
     path(
-        "admin/platform-stats/",
-        views.AdminPlatformStatsView.as_view(),
-        name="platform-stats",
+        "instructor/course/<uuid:course_id>/",
+        views.InstructorCourseAnalyticsView.as_view(),
+        name="instructor-course-analytics",
     ),
-    path("", include(router.urls)),
+    path("admin/dashboard/", views.AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("admin/revenue/", views.AdminRevenueAnalyticsView.as_view(), name="admin-revenue"),
 ]

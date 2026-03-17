@@ -62,6 +62,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "channels",
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
@@ -122,6 +123,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
 
 # ==============================
 # DATABASE (default — overridden per environment)
@@ -354,9 +356,30 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULE = {
     "update-course-analytics-hourly": {
-        "task": "apps.analytics.tasks.update_course_analytics",
+        "task": "apps.analytics.tasks.update_course_analytics_task",
         "schedule": 3600.0,
     },
+    "aggregate-platform-metrics-hourly": {
+        "task": "apps.analytics.tasks.aggregate_platform_metrics_task",
+        "schedule": 3600.0,
+    },
+}
+
+# ==============================
+# CHANNELS (WebSockets)
+# ==============================
+
+CHANNELS_REDIS_URL = os.environ.get(
+    "CHANNELS_REDIS_URL", os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/2")
+)
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [CHANNELS_REDIS_URL],
+        },
+    }
 }
 
 # ==============================

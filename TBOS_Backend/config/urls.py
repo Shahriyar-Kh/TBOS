@@ -40,6 +40,8 @@ class APIRootView(APIView):
                     "payments": "/api/v1/payments/",
                     "reviews": "/api/v1/reviews/",
                     "analytics": "/api/v1/analytics/",
+                    "analytics_ws_dashboard": "/ws/analytics/dashboard/?token=<jwt>",
+                    "analytics_ws_course": "/ws/analytics/course/{course_id}/?token=<jwt>",
                     "ai_tools": "/api/v1/ai/",
                     "certificates": "/api/v1/certificates/",
                     "notifications": "/api/v1/notifications/",
