@@ -1,7 +1,19 @@
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
+from apps.core.api_docs import (
+    COURSE_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    QUIZ_RATE_LIMIT_NOTE,
+    ROLE_ACCESS_GUIDE,
+    AUTH_GUIDE,
+    paginated_response,
+    standard_error_responses,
+    success_response,
+)
 from apps.core.exceptions import api_success, api_error
 from apps.core.pagination import StandardPagination
 from apps.core.permissions import IsAdminOrInstructor, IsAdmin, IsStudent
@@ -29,6 +41,14 @@ from apps.quiz.serializers import (
 # ──────────────────────────────────────────────
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Quiz"], summary="List quizzes", description=f"List instructor quizzes with optional course filtering.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM], responses={200: paginated_response("InstructorQuizListResponse", QuizSerializer), **standard_error_responses(401, 403, 500)}),
+    retrieve=extend_schema(tags=["Quiz"], summary="Get quiz details", responses={200: success_response("InstructorQuizDetailResponse", QuizDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    create=extend_schema(tags=["Quiz"], summary="Create quiz", request=QuizCreateSerializer, responses={201: success_response("InstructorQuizCreateResponse", QuizCreateSerializer), **standard_error_responses(400, 401, 403, 500)}),
+    update=extend_schema(tags=["Quiz"], summary="Update quiz", request=QuizCreateSerializer, responses={200: success_response("InstructorQuizUpdateResponse", QuizCreateSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    partial_update=extend_schema(tags=["Quiz"], summary="Partially update quiz", request=QuizCreateSerializer, responses={200: success_response("InstructorQuizPartialUpdateResponse", QuizCreateSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Quiz"], summary="Delete quiz", responses={200: success_response("InstructorQuizDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+)
 class InstructorQuizViewSet(viewsets.ModelViewSet):
     """
     /api/v1/quiz/instructor/quizzes/
@@ -45,6 +65,8 @@ class InstructorQuizViewSet(viewsets.ModelViewSet):
         return QuizSerializer
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Quiz.objects.none()
         user = self.request.user
         qs = Quiz.objects.select_related("course", "lesson").prefetch_related("questions__options")
         if user.role == "instructor":
@@ -93,6 +115,7 @@ class InstructorQuizViewSet(viewsets.ModelViewSet):
         return api_success(message="Quiz deleted successfully.", status_code=status.HTTP_200_OK)
 
 
+@extend_schema(tags=["Quiz"])
 class InstructorQuestionViewSet(viewsets.ModelViewSet):
     """
     /api/v1/quiz/instructor/questions/
@@ -105,6 +128,8 @@ class InstructorQuestionViewSet(viewsets.ModelViewSet):
         return QuestionSerializer
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Question.objects.none()
         user = self.request.user
         qs = Question.objects.select_related("quiz__course").prefetch_related("options")
         if user.role == "instructor":
@@ -135,6 +160,7 @@ class InstructorQuestionViewSet(viewsets.ModelViewSet):
         return api_success(message="Question deleted successfully.")
 
 
+@extend_schema(tags=["Quiz"])
 class InstructorOptionViewSet(viewsets.ModelViewSet):
     """
     /api/v1/quiz/instructor/options/
@@ -147,6 +173,8 @@ class InstructorOptionViewSet(viewsets.ModelViewSet):
         return OptionSerializer
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Option.objects.none()
         qs = Option.objects.select_related("question__quiz__course")
         if self.request.user.role == "instructor":
             qs = qs.filter(question__quiz__course__instructor=self.request.user)
@@ -181,6 +209,11 @@ class InstructorOptionViewSet(viewsets.ModelViewSet):
 # ──────────────────────────────────────────────
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Quiz"], summary="List all quizzes for admin", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM], responses={200: paginated_response("AdminQuizListResponse", QuizSerializer), **standard_error_responses(401, 403, 500)}),
+    retrieve=extend_schema(tags=["Quiz"], summary="Get admin quiz detail", responses={200: success_response("AdminQuizDetailResponse", QuizDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Quiz"], summary="Delete quiz as admin", responses={200: success_response("AdminQuizDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+)
 class AdminQuizViewSet(viewsets.ModelViewSet):
     """
     /api/v1/quiz/admin/quizzes/
@@ -221,6 +254,15 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
 # ──────────────────────────────────────────────
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Quiz"], summary="List quizzes available to student", responses={200: success_response("StudentQuizListResponse", QuizSerializer, many=True), **standard_error_responses(401, 403, 500)}),
+    retrieve=extend_schema(tags=["Quiz"], summary="Get quiz details for attempt", responses={200: success_response("StudentQuizDetailResponse", QuizStudentDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    start=extend_schema(tags=["Quiz"], summary="Start quiz attempt", responses={200: success_response("StudentQuizStartExistingResponse", None), 201: success_response("StudentQuizStartNewResponse", None), **standard_error_responses(400, 401, 403, 404, 500)}),
+    get_questions=extend_schema(tags=["Quiz"], summary="Get quiz questions", responses={200: success_response("StudentQuizQuestionsResponse", QuestionStudentSerializer, many=True), **standard_error_responses(401, 403, 404, 500)}),
+    submit_answer=extend_schema(tags=["Quiz"], summary="Submit question answer", description=QUIZ_RATE_LIMIT_NOTE, request=SubmitAnswerSerializer, examples=[OpenApiExample("SubmitAnswerRequest", value={"question_id": "f6a4f8d1-c130-49a1-b157-f6c73174f9e3", "option_id": "eaacfe5b-f1c2-4fab-8483-d9f4ea8ce2dc"}, request_only=True)], responses={200: success_response("StudentSubmitAnswerResponse", None), **standard_error_responses(400, 401, 403, 404, 429, 500)}),
+    submit=extend_schema(tags=["Quiz"], summary="Submit quiz attempt", description=QUIZ_RATE_LIMIT_NOTE, responses={200: success_response("StudentSubmitQuizResponse", QuizResultSerializer), **standard_error_responses(400, 401, 403, 404, 429, 500)}),
+    result=extend_schema(tags=["Quiz"], summary="Get quiz results", responses={200: success_response("StudentQuizResultResponse", QuizResultSerializer, many=True), **standard_error_responses(401, 403, 404, 500)}),
+)
 class StudentQuizViewSet(viewsets.ReadOnlyModelViewSet):
     """
     /api/v1/quiz/student/
@@ -230,6 +272,8 @@ class StudentQuizViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated, IsStudent]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Quiz.objects.none()
         enrolled_courses = self.request.user.enrollments.filter(
             is_active=True
         ).values_list("course_id", flat=True)

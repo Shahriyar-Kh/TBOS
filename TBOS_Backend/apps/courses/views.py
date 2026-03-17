@@ -1,11 +1,30 @@
 import logging
 
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import filters, generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    CATEGORY_PARAM,
+    COURSE_EXAMPLE,
+    LANGUAGE_PARAM,
+    LEVEL_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    SEARCH_PARAM,
+    SORTING_PARAM,
+    STATUS_PARAM,
+    paginated_response,
+    standard_error_responses,
+    success_example,
+    success_response,
+)
 from apps.core.exceptions import api_error, api_success
 from apps.core.mixins import APIResponseMixin
 from apps.core.pagination import StandardPagination
@@ -25,11 +44,96 @@ from apps.courses.services.course_service import CourseService
 
 logger = logging.getLogger(__name__)
 
+COURSE_CATEGORY_SLUG_PARAM = OpenApiParameter(
+    name="category__slug",
+    type=OpenApiTypes.STR,
+    location=OpenApiParameter.QUERY,
+    description="Filter by category slug.",
+)
+
+COURSE_LEVEL_ID_PARAM = OpenApiParameter(
+    name="level__id",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    description="Filter by course level identifier.",
+)
+
+COURSE_LANGUAGE_ID_PARAM = OpenApiParameter(
+    name="language__id",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    description="Filter by language identifier.",
+)
+
+IS_FREE_PARAM = OpenApiParameter(
+    name="is_free",
+    type=OpenApiTypes.BOOL,
+    location=OpenApiParameter.QUERY,
+    description="Filter for free or paid courses.",
+)
+
+PRICE_LTE_PARAM = OpenApiParameter(
+    name="price__lte",
+    type=OpenApiTypes.NUMBER,
+    location=OpenApiParameter.QUERY,
+    description="Filter courses with price less than or equal to the provided value.",
+)
+
+PRICE_GTE_PARAM = OpenApiParameter(
+    name="price__gte",
+    type=OpenApiTypes.NUMBER,
+    location=OpenApiParameter.QUERY,
+    description="Filter courses with price greater than or equal to the provided value.",
+)
+
 
 # ──────────────────────────────────────────────────────────────
 # Public / unauthenticated endpoints
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema(
+    tags=["Courses"],
+    summary="Browse published courses",
+    description=(
+        "Public course catalog with pagination, keyword search, filtering, and ordering. "
+        "Designed for storefront and frontend discovery experiences."
+    ),
+    parameters=[
+        PAGE_PARAM,
+        PAGE_SIZE_PARAM,
+        SEARCH_PARAM,
+        COURSE_CATEGORY_SLUG_PARAM,
+        COURSE_LEVEL_ID_PARAM,
+        COURSE_LANGUAGE_ID_PARAM,
+        IS_FREE_PARAM,
+        PRICE_LTE_PARAM,
+        PRICE_GTE_PARAM,
+        SORTING_PARAM,
+    ],
+    responses={
+        200: paginated_response(
+            "PublicCourseListResponse",
+            CourseListSerializer,
+            description="Published course catalog.",
+            examples=[
+                success_example(
+                    "CourseCatalog",
+                    "Courses retrieved successfully.",
+                    {
+                        "page": 1,
+                        "page_size": 20,
+                        "total_count": 1,
+                        "count": 1,
+                        "next": None,
+                        "previous": None,
+                        "results": [COURSE_EXAMPLE],
+                    },
+                )
+            ],
+        ),
+        **standard_error_responses(400, 500),
+    },
+)
 class PublicCourseListView(generics.ListAPIView):
     """
     GET /api/v1/courses/
@@ -76,6 +180,19 @@ class PublicCourseListView(generics.ListAPIView):
         )
 
 
+@extend_schema(
+    tags=["Courses"],
+    summary="Get public course details",
+    description="Return full public metadata for a published course identified by slug.",
+    responses={
+        200: success_response(
+            "PublicCourseDetailResponse",
+            CoursePublicSerializer,
+            examples=[success_example("CourseDetail", "Course retrieved successfully.", COURSE_EXAMPLE)],
+        ),
+        **standard_error_responses(404, 500),
+    },
+)
 class PublicCourseDetailView(generics.RetrieveAPIView):
     """
     GET /api/v1/courses/{slug}/
@@ -102,6 +219,15 @@ class PublicCourseDetailView(generics.RetrieveAPIView):
         return api_success(data=serializer.data, message="Course retrieved successfully.")
 
 
+@extend_schema(
+    tags=["Courses"],
+    summary="List course categories",
+    description="Lookup endpoint used to populate category filters and course creation forms.",
+    responses={
+        200: success_response("CategoryListResponse", CategorySerializer, many=True),
+        **standard_error_responses(500),
+    },
+)
 class CategoryListView(generics.ListAPIView):
     """GET /api/v1/courses/categories/"""
 
@@ -111,6 +237,15 @@ class CategoryListView(generics.ListAPIView):
     pagination_class = None
 
 
+@extend_schema(
+    tags=["Courses"],
+    summary="List course levels",
+    description="Lookup endpoint used to populate level filters and course authoring forms.",
+    responses={
+        200: success_response("LevelListResponse", LevelSerializer, many=True),
+        **standard_error_responses(500),
+    },
+)
 class LevelListView(generics.ListAPIView):
     """GET /api/v1/courses/levels/"""
 
@@ -120,6 +255,15 @@ class LevelListView(generics.ListAPIView):
     pagination_class = None
 
 
+@extend_schema(
+    tags=["Courses"],
+    summary="List course languages",
+    description="Lookup endpoint used to populate language filters and course authoring forms.",
+    responses={
+        200: success_response("LanguageListResponse", LanguageSerializer, many=True),
+        **standard_error_responses(500),
+    },
+)
 class LanguageListView(generics.ListAPIView):
     """GET /api/v1/courses/languages/"""
 
@@ -133,6 +277,99 @@ class LanguageListView(generics.ListAPIView):
 # Instructor endpoints
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Courses"],
+        summary="List instructor-owned courses",
+        description=(
+            "Return a paginated list of courses owned by the authenticated instructor. "
+            "Admins can also use this endpoint to inspect all courses.\n\n"
+            f"{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}"
+        ),
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM],
+        responses={
+            200: paginated_response("InstructorCourseListResponse", CourseListSerializer),
+            **standard_error_responses(401, 403, 500),
+        },
+    ),
+    retrieve=extend_schema(
+        tags=["Courses"],
+        summary="Get instructor course details",
+        description="Return the full editable course resource for an instructor-owned course.",
+        responses={
+            200: success_response("InstructorCourseDetailResponse", CourseDetailSerializer),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+    create=extend_schema(
+        tags=["Courses"],
+        summary="Create a course",
+        description="Create a new draft course under the authenticated instructor account.",
+        request=CourseCreateSerializer,
+        responses={
+            201: success_response("InstructorCourseCreateResponse", CourseDetailSerializer),
+            **standard_error_responses(400, 401, 403, 500),
+        },
+        examples=[
+            OpenApiExample(
+                "CreateCourseRequest",
+                value={
+                    "title": "Modern Django for Product Teams",
+                    "subtitle": "Build and operate production-ready Django services.",
+                    "description": "From project setup to observability and deployments.",
+                    "thumbnail": "https://res.cloudinary.com/tbos/image/upload/v1/courses/django-thumb.jpg",
+                    "promo_video_url": "https://www.youtube.com/watch?v=tbosdemo",
+                    "price": "149.00",
+                    "discount_price": "99.00",
+                    "is_free": False,
+                    "certificate_available": True,
+                    "category_id": "d7637e3d-92f0-4508-bba3-e27863bce58d",
+                    "level_id": "9c935c26-cc6d-49d4-bf63-c71cf6dba11c",
+                    "language_id": "00432bf4-6a3f-4b52-9a1c-64db5b0a4adb",
+                },
+                request_only=True,
+            )
+        ],
+    ),
+    update=extend_schema(
+        tags=["Courses"],
+        summary="Replace a course",
+        description="Fully update an existing instructor-owned course.",
+        request=CourseUpdateSerializer,
+        responses={
+            200: success_response("InstructorCourseUpdateResponse", CourseDetailSerializer),
+            **standard_error_responses(400, 401, 403, 404, 500),
+        },
+    ),
+    partial_update=extend_schema(
+        tags=["Courses"],
+        summary="Partially update a course",
+        description="Patch selected fields on an instructor-owned course.",
+        request=CourseUpdateSerializer,
+        responses={
+            200: success_response("InstructorCoursePartialUpdateResponse", CourseDetailSerializer),
+            **standard_error_responses(400, 401, 403, 404, 500),
+        },
+    ),
+    publish=extend_schema(
+        tags=["Courses"],
+        summary="Publish a course",
+        description="Transition a draft course to the published state after validation is complete.",
+        responses={
+            200: success_response("InstructorCoursePublishResponse", CourseDetailSerializer),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+    archive=extend_schema(
+        tags=["Courses"],
+        summary="Archive a course",
+        description="Archive a course so it no longer appears in the public catalog.",
+        responses={
+            200: success_response("InstructorCourseArchiveResponse", CourseDetailSerializer),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+)
 class InstructorCourseViewSet(APIResponseMixin, viewsets.ModelViewSet):
     """
     Instructor CRUD on own courses.
@@ -239,6 +476,74 @@ class InstructorCourseViewSet(APIResponseMixin, viewsets.ModelViewSet):
 # Admin endpoints
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Courses"],
+        summary="List all courses for admin review",
+        description=(
+            "Administrative course catalog with filtering, search, and ordering for moderation workflows.\n\n"
+            f"{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}"
+        ),
+        parameters=[
+            PAGE_PARAM,
+            PAGE_SIZE_PARAM,
+            SEARCH_PARAM,
+            COURSE_CATEGORY_SLUG_PARAM,
+            COURSE_LEVEL_ID_PARAM,
+            COURSE_LANGUAGE_ID_PARAM,
+            STATUS_PARAM,
+            SORTING_PARAM,
+        ],
+        responses={
+            200: paginated_response("AdminCourseListResponse", CourseListSerializer),
+            **standard_error_responses(401, 403, 500),
+        },
+    ),
+    retrieve=extend_schema(
+        tags=["Courses"],
+        summary="Get full course details for admin review",
+        responses={
+            200: success_response("AdminCourseDetailResponse", CourseDetailSerializer),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+    update=extend_schema(
+        tags=["Courses"],
+        summary="Update any course as an admin",
+        request=CourseUpdateSerializer,
+        responses={
+            200: success_response("AdminCourseUpdateResponse", CourseDetailSerializer),
+            **standard_error_responses(400, 401, 403, 404, 500),
+        },
+    ),
+    partial_update=extend_schema(
+        tags=["Courses"],
+        summary="Partially update any course as an admin",
+        request=CourseUpdateSerializer,
+        responses={
+            200: success_response("AdminCoursePartialUpdateResponse", CourseDetailSerializer),
+            **standard_error_responses(400, 401, 403, 404, 500),
+        },
+    ),
+    destroy=extend_schema(
+        tags=["Courses"],
+        summary="Delete a course",
+        description="Permanently remove a course and its associated catalog record.",
+        responses={
+            200: success_response("AdminCourseDeleteResponse", None),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+    publish=extend_schema(
+        tags=["Courses"],
+        summary="Force-publish a course",
+        description="Administrative publish operation for a course in any state.",
+        responses={
+            200: success_response("AdminCoursePublishResponse", CourseDetailSerializer),
+            **standard_error_responses(401, 403, 404, 500),
+        },
+    ),
+)
 class AdminCourseViewSet(APIResponseMixin, viewsets.ModelViewSet):
     """
     Admin management of all courses.
@@ -320,6 +625,14 @@ class AdminCourseViewSet(APIResponseMixin, viewsets.ModelViewSet):
         return self.success_response(data=out.data, message="Course published successfully.")
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Courses"], summary="List categories", responses={200: success_response("AdminCategoryListResponse", CategorySerializer, many=True)}),
+    retrieve=extend_schema(tags=["Courses"], summary="Get category details", responses={200: success_response("AdminCategoryDetailResponse", CategorySerializer), **standard_error_responses(404, 500)}),
+    create=extend_schema(tags=["Courses"], summary="Create a category", request=CategorySerializer, responses={201: success_response("AdminCategoryCreateResponse", CategorySerializer), **standard_error_responses(400, 500)}),
+    update=extend_schema(tags=["Courses"], summary="Update a category", request=CategorySerializer, responses={200: success_response("AdminCategoryUpdateResponse", CategorySerializer), **standard_error_responses(400, 404, 500)}),
+    partial_update=extend_schema(tags=["Courses"], summary="Partially update a category", request=CategorySerializer, responses={200: success_response("AdminCategoryPartialUpdateResponse", CategorySerializer), **standard_error_responses(400, 404, 500)}),
+    destroy=extend_schema(tags=["Courses"], summary="Delete a category", responses={204: success_response("AdminCategoryDeleteResponse", None), **standard_error_responses(404, 500)}),
+)
 class AdminCategoryViewSet(viewsets.ModelViewSet):
     """Admin CRUD for categories."""
 
@@ -328,12 +641,26 @@ class AdminCategoryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin]
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Courses"], summary="List levels", responses={200: success_response("AdminLevelListResponse", LevelSerializer, many=True)}),
+    retrieve=extend_schema(tags=["Courses"], summary="Get level details", responses={200: success_response("AdminLevelDetailResponse", LevelSerializer), **standard_error_responses(404, 500)}),
+    create=extend_schema(tags=["Courses"], summary="Create a level", request=LevelSerializer, responses={201: success_response("AdminLevelCreateResponse", LevelSerializer), **standard_error_responses(400, 500)}),
+    update=extend_schema(tags=["Courses"], summary="Update a level", request=LevelSerializer, responses={200: success_response("AdminLevelUpdateResponse", LevelSerializer), **standard_error_responses(400, 404, 500)}),
+    partial_update=extend_schema(tags=["Courses"], summary="Partially update a level", request=LevelSerializer, responses={200: success_response("AdminLevelPartialUpdateResponse", LevelSerializer), **standard_error_responses(400, 404, 500)}),
+)
 class AdminLevelViewSet(viewsets.ModelViewSet):
     queryset = Level.objects.all()
     serializer_class = LevelSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Courses"], summary="List languages", responses={200: success_response("AdminLanguageListResponse", LanguageSerializer, many=True)}),
+    retrieve=extend_schema(tags=["Courses"], summary="Get language details", responses={200: success_response("AdminLanguageDetailResponse", LanguageSerializer), **standard_error_responses(404, 500)}),
+    create=extend_schema(tags=["Courses"], summary="Create a language", request=LanguageSerializer, responses={201: success_response("AdminLanguageCreateResponse", LanguageSerializer), **standard_error_responses(400, 500)}),
+    update=extend_schema(tags=["Courses"], summary="Update a language", request=LanguageSerializer, responses={200: success_response("AdminLanguageUpdateResponse", LanguageSerializer), **standard_error_responses(400, 404, 500)}),
+    partial_update=extend_schema(tags=["Courses"], summary="Partially update a language", request=LanguageSerializer, responses={200: success_response("AdminLanguagePartialUpdateResponse", LanguageSerializer), **standard_error_responses(400, 404, 500)}),
+)
 class AdminLanguageViewSet(viewsets.ModelViewSet):
     queryset = Language.objects.all()
     serializer_class = LanguageSerializer

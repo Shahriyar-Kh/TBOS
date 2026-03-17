@@ -1,8 +1,10 @@
 from django.http import FileResponse
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.core.api_docs import AUTH_GUIDE, ROLE_ACCESS_GUIDE, CERTIFICATE_EXAMPLE, standard_error_responses, success_example, success_response
 from apps.certificates.models import Certificate
 from apps.certificates.serializers import (
     CertificateSerializer,
@@ -19,7 +21,16 @@ class MyCertificatesView(generics.ListAPIView):
     serializer_class = CertificateSerializer
     permission_classes = [IsAuthenticated, IsStudent]
 
+    @extend_schema(
+        tags=["Certificates"],
+        summary="List student certificates",
+        description=f"Return certificates issued to the authenticated student.\n\n{AUTH_GUIDE}",
+        responses={200: success_response("MyCertificatesResponse", CertificateSerializer, many=True, examples=[success_example("Certificates", "Certificates retrieved.", [CERTIFICATE_EXAMPLE])]), **standard_error_responses(401, 403, 500)},
+    )
+
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Certificate.objects.none()
         return CertificateService.get_student_certificates(self.request.user)
 
     def list(self, request, *args, **kwargs):
@@ -31,6 +42,13 @@ class CertificateDownloadView(APIView):
     """GET /api/v1/certificates/{id}/download/"""
 
     permission_classes = [IsAuthenticated, IsStudent]
+
+    @extend_schema(
+        tags=["Certificates"],
+        summary="Download certificate PDF",
+        description="Download the generated certificate PDF file for the authenticated student.",
+        responses={200: {"description": "PDF file response"}, **standard_error_responses(401, 403, 404, 500)},
+    )
 
     def get(self, request, pk):
         certificate = Certificate.objects.select_related("student", "course").filter(id=pk).first()
@@ -69,6 +87,13 @@ class VerifyCertificateView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Certificates"],
+        summary="Verify certificate by code",
+        auth=[],
+        responses={200: success_response("CertificateVerifyResponse", CertificateVerificationSerializer), **standard_error_responses(404, 500)},
+    )
+
     def get(self, request, verification_code):
         result = CertificateService.verify_certificate(verification_code)
         if not result["is_valid"]:
@@ -91,6 +116,13 @@ class AdminCertificateListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsAdmin]
     queryset = Certificate.objects.select_related("student", "course").all()
 
+    @extend_schema(
+        tags=["Certificates"],
+        summary="List all certificates",
+        description=f"Administrative certificate ledger.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        responses={200: success_response("AdminCertificatesResponse", CertificateSerializer, many=True), **standard_error_responses(401, 403, 500)},
+    )
+
     def list(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_queryset(), many=True)
         return api_success(data=serializer.data, message="Certificates retrieved.")
@@ -100,6 +132,12 @@ class AdminCertificateDeleteView(APIView):
     """DELETE /api/v1/admin/certificates/{id}/"""
 
     permission_classes = [IsAuthenticated, IsAdmin]
+
+    @extend_schema(
+        tags=["Certificates"],
+        summary="Delete certificate",
+        responses={200: success_response("AdminCertificateDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)},
+    )
 
     def delete(self, request, pk):
         certificate = Certificate.objects.filter(id=pk).first()

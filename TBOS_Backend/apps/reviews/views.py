@@ -1,7 +1,19 @@
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    COURSE_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    STATUS_PARAM,
+    paginated_response,
+    standard_error_responses,
+    success_response,
+)
 from apps.core.exceptions import api_success, api_error
 from apps.core.mixins import MultiSerializerMixin
 from apps.core.pagination import StandardPagination
@@ -18,6 +30,10 @@ from apps.reviews.serializers import (
 from apps.reviews.services.review_service import ReviewService
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Reviews"], summary="List public reviews", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM], responses={200: paginated_response("PublicReviewListResponse", ReviewDetailSerializer), **standard_error_responses(400, 500)}),
+    retrieve=extend_schema(tags=["Reviews"], summary="Get public review details", responses={200: success_response("PublicReviewDetailResponse", ReviewDetailSerializer), **standard_error_responses(404, 500)}),
+)
 class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
     """
     GET /api/v1/reviews/public/
@@ -55,6 +71,14 @@ class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
         return api_success(data=serializer.data, message="Review details retrieved.")
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Reviews"], summary="List student reviews", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM], responses={200: paginated_response("StudentReviewListResponse", ReviewListSerializer), **standard_error_responses(401, 403, 500)}),
+    retrieve=extend_schema(tags=["Reviews"], summary="Get student review details", responses={200: success_response("StudentReviewDetailResponse", ReviewDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    create=extend_schema(tags=["Reviews"], summary="Create review", request=ReviewCreateSerializer, responses={201: success_response("StudentReviewCreateResponse", ReviewDetailSerializer), **standard_error_responses(400, 401, 403, 500)}),
+    update=extend_schema(tags=["Reviews"], summary="Update review", request=ReviewUpdateSerializer, responses={200: success_response("StudentReviewUpdateResponse", ReviewDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    partial_update=extend_schema(tags=["Reviews"], summary="Partially update review", request=ReviewUpdateSerializer, responses={200: success_response("StudentReviewPartialUpdateResponse", ReviewDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Reviews"], summary="Delete review", responses={200: success_response("StudentReviewDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+)
 class StudentReviewViewSet(MultiSerializerMixin, viewsets.ModelViewSet):
     """
     POST   /api/v1/reviews/         — Submit review
@@ -74,6 +98,8 @@ class StudentReviewViewSet(MultiSerializerMixin, viewsets.ModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Review.objects.none()
         return (
             Review.objects.filter(student=self.request.user)
             .select_related("student", "course")
@@ -144,6 +170,10 @@ class StudentReviewViewSet(MultiSerializerMixin, viewsets.ModelViewSet):
         return api_success(data=serializer.data, message="Review details retrieved.")
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Reviews"], summary="List instructor course reviews", description=f"List reviews on the authenticated instructor courses.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM], responses={200: paginated_response("InstructorReviewListResponse", ReviewDetailSerializer), **standard_error_responses(401, 403, 500)}),
+    respond=extend_schema(tags=["Reviews"], summary="Respond to course review", request=InstructorResponseSerializer, responses={201: success_response("InstructorReviewRespondResponse", ReviewDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+)
 class InstructorReviewViewSet(viewsets.GenericViewSet):
     """
     POST /api/v1/reviews/instructor/respond/ — Respond to a review
@@ -154,6 +184,8 @@ class InstructorReviewViewSet(viewsets.GenericViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Review.objects.none()
         return (
             Review.objects.filter(course__instructor=self.request.user)
             .select_related("student", "course")
@@ -206,6 +238,10 @@ class InstructorReviewViewSet(viewsets.GenericViewSet):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Reviews"], summary="List all reviews for moderation", parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, STATUS_PARAM, COURSE_PARAM], responses={200: paginated_response("AdminReviewListResponse", ReviewDetailSerializer), **standard_error_responses(401, 403, 500)}),
+    moderate=extend_schema(tags=["Reviews"], summary="Moderate review status", request=AdminReviewModerateSerializer, responses={200: success_response("AdminReviewModerateResponse", ReviewDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+)
 class AdminReviewViewSet(viewsets.GenericViewSet):
     """
     GET /api/v1/reviews/admin/             — View all reviews

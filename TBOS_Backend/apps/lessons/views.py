@@ -1,10 +1,25 @@
 import logging
 
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    COURSE_EXAMPLE,
+    LESSON_EXAMPLE,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    COURSE_PARAM,
+    SECTION_PARAM,
+    paginated_response,
+    standard_error_responses,
+    success_example,
+    success_response,
+)
 from apps.core.exceptions import api_error, api_success
 from apps.core.mixins import APIResponseMixin
 from apps.core.pagination import StandardPagination
@@ -30,6 +45,27 @@ logger = logging.getLogger(__name__)
 # Instructor: Section management
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Lessons"],
+        summary="List course sections",
+        description=f"List sections for instructor-owned courses.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM],
+        responses={200: paginated_response("InstructorSectionListResponse", CourseSectionDetailSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Lessons"], summary="Get section details", responses={200: success_response("InstructorSectionDetailResponse", CourseSectionDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    create=extend_schema(tags=["Lessons"], summary="Create a course section", request=CourseSectionCreateSerializer, responses={201: success_response("InstructorSectionCreateResponse", CourseSectionDetailSerializer), **standard_error_responses(400, 401, 403, 500)}),
+    update=extend_schema(tags=["Lessons"], summary="Update a section", request=CourseSectionUpdateSerializer, responses={200: success_response("InstructorSectionUpdateResponse", CourseSectionDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    partial_update=extend_schema(tags=["Lessons"], summary="Partially update a section", request=CourseSectionUpdateSerializer, responses={200: success_response("InstructorSectionPartialUpdateResponse", CourseSectionDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Lessons"], summary="Delete a section", responses={200: success_response("InstructorSectionDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+    reorder=extend_schema(
+        tags=["Lessons"],
+        summary="Reorder course sections",
+        description="Bulk reorder sections inside a course.",
+        examples=[OpenApiExample("ReorderSections", value={"course_id": "d7637e3d-92f0-4508-bba3-e27863bce58d", "order": [{"id": "f6a4f8d1-c130-49a1-b157-f6c73174f9e3", "order": 1}]}, request_only=True)],
+        responses={200: success_response("InstructorSectionReorderResponse", None), **standard_error_responses(400, 401, 403, 500)},
+    ),
+)
 class InstructorSectionViewSet(APIResponseMixin, viewsets.ModelViewSet):
     """
     Instructor CRUD on course sections.
@@ -132,6 +168,27 @@ class InstructorSectionViewSet(APIResponseMixin, viewsets.ModelViewSet):
 # Instructor: Lesson management
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Lessons"],
+        summary="List lessons",
+        description=f"List lessons under instructor-owned sections.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, SECTION_PARAM],
+        responses={200: paginated_response("InstructorLessonListResponse", LessonDetailSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Lessons"], summary="Get lesson details", responses={200: success_response("InstructorLessonDetailResponse", LessonDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    create=extend_schema(tags=["Lessons"], summary="Create a lesson", request=LessonCreateSerializer, responses={201: success_response("InstructorLessonCreateResponse", LessonDetailSerializer), **standard_error_responses(400, 401, 403, 500)}),
+    update=extend_schema(tags=["Lessons"], summary="Update a lesson", request=LessonUpdateSerializer, responses={200: success_response("InstructorLessonUpdateResponse", LessonDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    partial_update=extend_schema(tags=["Lessons"], summary="Partially update a lesson", request=LessonUpdateSerializer, responses={200: success_response("InstructorLessonPartialUpdateResponse", LessonDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Lessons"], summary="Delete a lesson", responses={200: success_response("InstructorLessonDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+    reorder=extend_schema(
+        tags=["Lessons"],
+        summary="Reorder lessons",
+        description="Bulk reorder lessons inside a section.",
+        examples=[OpenApiExample("ReorderLessons", value={"section_id": "6d3e833f-9a65-4aaf-ab6a-70076b0fa554", "order": [{"id": LESSON_EXAMPLE["id"], "order": 1}]}, request_only=True)],
+        responses={200: success_response("InstructorLessonReorderResponse", None), **standard_error_responses(400, 401, 403, 500)},
+    ),
+)
 class InstructorLessonViewSet(APIResponseMixin, viewsets.ModelViewSet):
     """
     Instructor CRUD on lessons.
@@ -234,6 +291,27 @@ class InstructorLessonViewSet(APIResponseMixin, viewsets.ModelViewSet):
 # Public curriculum endpoint
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    retrieve=extend_schema(
+        tags=["Lessons"],
+        summary="Get public course curriculum",
+        description="Return full section and lesson structure for a course by slug.",
+        responses={
+            200: success_response(
+                "CourseCurriculumResponse",
+                None,
+                examples=[
+                    success_example(
+                        "CurriculumSuccess",
+                        "Curriculum retrieved successfully.",
+                        {"course_id": COURSE_EXAMPLE["id"], "title": COURSE_EXAMPLE["title"], "slug": COURSE_EXAMPLE["slug"], "sections": [{"id": "f6a4f8d1-c130-49a1-b157-f6c73174f9e3", "title": "Service Design", "order": 1, "lessons": [LESSON_EXAMPLE]}]},
+                    )
+                ],
+            ),
+            **standard_error_responses(404, 500),
+        },
+    )
+)
 class CourseCurriculumView(viewsets.ViewSet):
     """
     GET /api/v1/courses/{slug}/curriculum/
@@ -266,6 +344,15 @@ class CourseCurriculumView(viewsets.ViewSet):
 # Public lesson listing (legacy)
 # ──────────────────────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Lessons"],
+        summary="List preview lessons",
+        description="Public listing of preview-enabled lessons, optionally filtered by section.",
+        parameters=[SECTION_PARAM],
+        responses={200: success_response("PublicLessonListResponse", LessonListSerializer, many=True), **standard_error_responses(500)},
+    )
+)
 class PublicLessonListView(viewsets.ReadOnlyModelViewSet):
     """
     GET /api/v1/lessons/public/?section={section_id}

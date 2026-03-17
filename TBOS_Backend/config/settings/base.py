@@ -250,7 +250,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
     "DEFAULT_VERSION": "v1",
-    "ALLOWED_VERSIONS": ("v1",),
+    "ALLOWED_VERSIONS": ("v1", "v2"),
     "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.AnonRateThrottle",
@@ -305,14 +305,49 @@ SOCIALACCOUNT_PROVIDERS = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "TechBuilt Open School API",
     "DESCRIPTION": (
-        "Production-ready EdTech LMS REST API with role-based access, "
-        "JWT authentication, Stripe payments, and Celery async tasks."
+        "LMS backend API for managing courses, users, enrollments, quizzes, assignments, payments, and analytics.\n\n"
+        "Authentication: JWT Bearer tokens are required for protected endpoints and must be sent as `Authorization: Bearer <token>`.\n\n"
+        "Response envelope: successful responses use `{success, message, data}` and validation errors return `{success, message, errors}`.\n\n"
+        "Versioning: all current endpoints are published under `/api/v1/`. The URL namespace structure reserves `/api/v2/` for future backwards-compatible expansion.\n\n"
+        "Rate limits: authentication flows are limited to 10 requests per minute per IP, and quiz submissions are limited to 30 POST requests per minute per authenticated user."
     ),
-    "VERSION": "1.0.0",
+    "VERSION": "v1",
     "SERVE_INCLUDE_SCHEMA": False,
-    "SCHEMA_PATH_PREFIX": "/api/v1/",
+    "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+/",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
     "COMPONENT_SPLIT_REQUEST": True,
+    "CONTACT": {
+        "name": "TBOS API Support",
+        "email": "api-support@tbos.local",
+        "url": "http://localhost:8000/api/docs/",
+    },
+    "SERVERS": [
+        {
+            "url": "/",
+            "description": "Current environment",
+        },
+        {
+            "url": "http://localhost:8000",
+            "description": "Local development",
+        },
+    ],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Paste your JWT access token as: Bearer <token>",
+            }
+        }
+    },
+    "SECURITY": [{"BearerAuth": []}],
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "displayRequestDuration": True,
+        "persistAuthorization": True,
+        "tryItOutEnabled": True,
+    },
     "TAGS": [
         {"name": "Accounts", "description": "Authentication, registration, and user management"},
         {"name": "Courses", "description": "Course CRUD and catalog"},
@@ -321,10 +356,9 @@ SPECTACULAR_SETTINGS = {
         {"name": "Quiz", "description": "Quiz creation and student attempts"},
         {"name": "Assignments", "description": "Assignments and submissions"},
         {"name": "Enrollments", "description": "Student enrollment and progress"},
-        {"name": "Payments", "description": "Stripe checkout and payment history"},
+        {"name": "Payments", "description": "Stripe checkout, verification, refunds, and webhooks"},
         {"name": "Reviews", "description": "Course reviews and ratings"},
         {"name": "Analytics", "description": "Platform analytics and activity tracking"},
-        {"name": "AI Tools", "description": "AI quiz generation and content suggestions"},
         {"name": "Certificates", "description": "Course completion certificates"},
         {"name": "Notifications", "description": "User notifications"},
     ],

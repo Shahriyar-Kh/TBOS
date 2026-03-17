@@ -1,8 +1,17 @@
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    END_DATE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    START_DATE_PARAM,
+    standard_error_responses,
+    success_response,
+)
 from apps.analytics.models import CourseAnalytics
 from apps.analytics.serializers import (
     AdminAnalyticsSerializer,
@@ -29,6 +38,12 @@ from apps.payments.models import Order
 class StudentDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Student analytics dashboard",
+        description=f"Return learning progress and personalized insights for the current student.\n\n{AUTH_GUIDE}",
+        responses={200: success_response("StudentDashboardResponse", None), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         data = get_student_dashboard(request.user)
         payload = {
@@ -41,6 +56,12 @@ class StudentDashboardView(APIView):
 class InstructorDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Instructor dashboard",
+        description=f"Instructor-level analytics summary for owned courses.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        responses={200: success_response("InstructorDashboardResponse", InstructorAnalyticsSerializer), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         if request.user.role == "admin":
             return api_error(
@@ -56,6 +77,12 @@ class InstructorDashboardView(APIView):
 class InstructorCourseAnalyticsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrInstructor]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Course analytics details",
+        description="Return detailed engagement and completion metrics for a specific course.",
+        responses={200: success_response("InstructorCourseAnalyticsResponse", CourseAnalyticsSerializer), **standard_error_responses(401, 403, 404, 500)},
+    )
     def get(self, request, course_id):
         course = get_object_or_404(Course.objects.select_related("instructor"), id=course_id)
         if request.user.role == "instructor" and course.instructor_id != request.user.id:
@@ -82,6 +109,12 @@ class InstructorCourseAnalyticsView(APIView):
 class AdminDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Admin dashboard analytics",
+        parameters=[START_DATE_PARAM, END_DATE_PARAM],
+        responses={200: success_response("AdminDashboardResponse", None), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         start_date = request.query_params.get("start_date")
         end_date = request.query_params.get("end_date")
@@ -101,6 +134,12 @@ class AdminDashboardView(APIView):
 class AdminRevenueAnalyticsView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Admin revenue analytics",
+        parameters=[START_DATE_PARAM, END_DATE_PARAM],
+        responses={200: success_response("AdminRevenueAnalyticsResponse", RevenueAnalyticsSerializer), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         start_date = request.query_params.get("start_date")
         end_date = request.query_params.get("end_date")
@@ -131,6 +170,12 @@ class AdminRevenueAnalyticsView(APIView):
 class RecordUserActivityView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Analytics"],
+        summary="Track user activity",
+        request=TrackActivitySerializer,
+        responses={201: success_response("RecordActivityResponse", None), **standard_error_responses(400, 401, 500)},
+    )
     def post(self, request):
         serializer = TrackActivitySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

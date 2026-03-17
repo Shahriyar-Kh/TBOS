@@ -1,11 +1,26 @@
 import logging
 
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    COURSE_PARAM,
+    LESSON_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    VIDEO_EXAMPLE,
+    VIDEO_IMPORT_RATE_LIMIT_NOTE,
+    paginated_response,
+    standard_error_responses,
+    success_example,
+    success_response,
+)
 from apps.core.exceptions import api_error, api_success
 from apps.core.mixins import APIResponseMixin
 from apps.core.pagination import StandardPagination
@@ -34,6 +49,22 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 
 
+@extend_schema_view(
+    retrieve=extend_schema(
+        tags=["Videos"],
+        summary="Get lesson videos",
+        description="Return published videos for a lesson. Non-preview videos require authentication plus enrollment or instructor/admin access.",
+        responses={
+            200: success_response(
+                "LessonVideosResponse",
+                VideoListSerializer,
+                many=True,
+                examples=[success_example("LessonVideos", "Lesson videos retrieved successfully.", [VIDEO_EXAMPLE])],
+            ),
+            **standard_error_responses(404, 500),
+        },
+    )
+)
 class LessonVideoView(APIResponseMixin, viewsets.ViewSet):
     """
     GET /api/v1/lessons/{lesson_id}/video/
@@ -88,6 +119,16 @@ class LessonVideoView(APIResponseMixin, viewsets.ViewSet):
 # ──────────────────────────────────────────────────────────────
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Videos"],
+        summary="Browse preview videos",
+        description="List publicly visible preview videos with optional lesson/course filters.",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, LESSON_PARAM, COURSE_PARAM],
+        responses={200: paginated_response("PublicVideoListResponse", VideoListSerializer), **standard_error_responses(400, 500)},
+    ),
+    retrieve=extend_schema(tags=["Videos"], summary="Get preview video details", responses={200: success_response("PublicVideoDetailResponse", VideoDetailSerializer), **standard_error_responses(404, 500)}),
+)
 class PublicVideoViewSet(APIResponseMixin, viewsets.ReadOnlyModelViewSet):
     """
     GET /api/v1/videos/public/?lesson={id}&course={id}
@@ -139,6 +180,53 @@ class PublicVideoViewSet(APIResponseMixin, viewsets.ReadOnlyModelViewSet):
 # ──────────────────────────────────────────────────────────────
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Videos"],
+        summary="List instructor videos",
+        description=f"List videos for instructor-owned courses.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, LESSON_PARAM, COURSE_PARAM],
+        responses={200: paginated_response("InstructorVideoListResponse", VideoDetailSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Videos"], summary="Get instructor video details", responses={200: success_response("InstructorVideoDetailResponse", VideoDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    update=extend_schema(tags=["Videos"], summary="Update video metadata", request=VideoUpdateSerializer, responses={200: success_response("InstructorVideoUpdateResponse", VideoDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    partial_update=extend_schema(tags=["Videos"], summary="Partially update video metadata", request=VideoUpdateSerializer, responses={200: success_response("InstructorVideoPartialUpdateResponse", VideoDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    destroy=extend_schema(tags=["Videos"], summary="Delete a video", responses={200: success_response("InstructorVideoDeleteResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+    import_youtube=extend_schema(
+        tags=["Videos"],
+        summary="Import a YouTube video",
+        description=f"Create a lesson video from a single YouTube URL. {VIDEO_IMPORT_RATE_LIMIT_NOTE}",
+        request=YouTubeImportSerializer,
+        responses={201: success_response("YouTubeImportResponse", VideoDetailSerializer), **standard_error_responses(400, 401, 403, 404, 429, 500)},
+    ),
+    import_playlist=extend_schema(
+        tags=["Videos"],
+        summary="Import a YouTube playlist",
+        description=f"Queue asynchronous playlist import into a lesson. {VIDEO_IMPORT_RATE_LIMIT_NOTE}",
+        request=YouTubePlaylistImportSerializer,
+        responses={202: success_response("YouTubePlaylistImportResponse", YouTubePlaylistImportSerializer), **standard_error_responses(400, 401, 403, 404, 429, 500)},
+    ),
+    add_cloudinary=extend_schema(
+        tags=["Videos"],
+        summary="Register Cloudinary-hosted video",
+        description="Store metadata for a video already uploaded to Cloudinary.",
+        request=CloudinaryVideoSerializer,
+        responses={201: success_response("CloudinaryVideoCreateResponse", VideoDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    ),
+    add_s3=extend_schema(
+        tags=["Videos"],
+        summary="Register S3-hosted video",
+        description="Store metadata for a video already uploaded to AWS S3.",
+        request=S3VideoSerializer,
+        responses={201: success_response("S3VideoCreateResponse", VideoDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    ),
+    reorder=extend_schema(
+        tags=["Videos"],
+        summary="Reorder lesson videos",
+        examples=[OpenApiExample("ReorderVideos", value={"lesson_id": "a5f08d91-c5d5-4add-a4a5-31cb14985d0e", "order": [{"id": VIDEO_EXAMPLE["id"], "order": 1}]}, request_only=True)],
+        responses={200: success_response("VideoReorderResponse", None), **standard_error_responses(400, 401, 403, 404, 500)},
+    ),
+)
 class InstructorVideoViewSet(APIResponseMixin, viewsets.ModelViewSet):
     """
     Instructor CRUD on videos.

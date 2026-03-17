@@ -1,7 +1,21 @@
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    COURSE_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    STATUS_PARAM,
+    STUDENT_PARAM,
+    paginated_response,
+    standard_error_responses,
+    success_example,
+    success_response,
+)
 from apps.core.exceptions import api_success, api_error
 from apps.core.pagination import StandardPagination
 from apps.core.permissions import IsStudent, IsAdmin, IsAdminOrInstructor
@@ -25,6 +39,31 @@ from apps.videos.models import Video
 # Student endpoints
 # ──────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Enrollments"],
+        summary="List student enrollments",
+        description=f"Return current student enrollments with progress metadata.\n\n{AUTH_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM],
+        responses={200: paginated_response("StudentEnrollmentListResponse", EnrollmentSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Enrollments"], summary="Get enrollment details", responses={200: success_response("StudentEnrollmentDetailResponse", EnrollmentSerializer), **standard_error_responses(401, 403, 404, 500)}),
+    enroll=extend_schema(
+        tags=["Enrollments"],
+        summary="Enroll in a course",
+        request=EnrollmentCreateSerializer,
+        responses={201: success_response("StudentEnrollResponse", EnrollmentSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    ),
+    progress=extend_schema(tags=["Enrollments"], summary="Get course progress", responses={200: success_response("EnrollmentProgressResponse", None), **standard_error_responses(401, 403, 404, 500)}),
+    complete_lesson=extend_schema(tags=["Enrollments"], summary="Mark lesson complete", request=MarkLessonCompleteSerializer, responses={200: success_response("CompleteLessonResponse", EnrollmentSerializer), **standard_error_responses(400, 401, 403, 404, 500)}),
+    video_progress=extend_schema(
+        tags=["Enrollments"],
+        summary="Update video watch progress",
+        request=VideoProgressUpdateSerializer,
+        examples=[OpenApiExample("VideoProgress", value={"video_id": "f3d8b6c2-d8f8-4ef0-a2f4-7cbd72b309d4", "watch_time_seconds": 320, "last_position_seconds": 145}, request_only=True)],
+        responses={200: success_response("VideoProgressResponse", VideoProgressSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    ),
+)
 class StudentEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Student enrollment endpoints.
@@ -41,6 +80,8 @@ class StudentEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Enrollment.objects.none()
         return EnrollmentService.get_student_enrollments(self.request.user)
 
     def list(self, request, *args, **kwargs):
@@ -180,6 +221,16 @@ class StudentEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
 # Instructor endpoints
 # ──────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Enrollments"],
+        summary="List course enrollments for instructor",
+        description=f"Instructor/admin enrollment monitoring endpoint.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM, STUDENT_PARAM],
+        responses={200: paginated_response("InstructorEnrollmentListResponse", EnrollmentDetailSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Enrollments"], summary="Get enrollment details for instructor", responses={200: success_response("InstructorEnrollmentDetailResponse", EnrollmentDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+)
 class InstructorEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Instructor enrollment view.
@@ -193,6 +244,8 @@ class InstructorEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Enrollment.objects.none()
         user = self.request.user
         qs = Enrollment.objects.select_related(
             "student", "course__category", "course__level", "course__instructor"
@@ -227,6 +280,16 @@ class InstructorEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
 # Admin endpoints
 # ──────────────────────────────────────────────
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Enrollments"],
+        summary="List all enrollments",
+        description=f"Administrative enrollment listing with filters.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, COURSE_PARAM, STUDENT_PARAM, STATUS_PARAM],
+        responses={200: paginated_response("AdminEnrollmentListResponse", EnrollmentDetailSerializer), **standard_error_responses(401, 403, 500)},
+    ),
+    retrieve=extend_schema(tags=["Enrollments"], summary="Get enrollment details for admin", responses={200: success_response("AdminEnrollmentDetailResponse", EnrollmentDetailSerializer), **standard_error_responses(401, 403, 404, 500)}),
+)
 class AdminEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Admin enrollment view — all enrollments.
@@ -240,6 +303,8 @@ class AdminEnrollmentViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Enrollment.objects.none()
         qs = Enrollment.objects.select_related(
             "student", "course__category", "course__level", "course__instructor"
         )

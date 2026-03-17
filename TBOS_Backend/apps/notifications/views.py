@@ -1,7 +1,9 @@
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
 
+from apps.core.api_docs import AUTH_GUIDE, ROLE_ACCESS_GUIDE, PAGE_PARAM, PAGE_SIZE_PARAM, standard_error_responses, success_response
 from apps.core.exceptions import api_error, api_success
 from apps.core.pagination import StandardPagination
 from apps.core.permissions import IsAdmin
@@ -17,6 +19,13 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = StandardPagination
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="List notifications",
+        description=f"Return current user notifications with optional `is_read` filtering.\n\n{AUTH_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM],
+        responses={200: success_response("NotificationListResponse", None), **standard_error_responses(401, 500)},
+    )
     def get(self, request):
         is_read_param = request.query_params.get("is_read")
         is_read = None
@@ -41,6 +50,12 @@ class NotificationListView(APIView):
 class NotificationReadView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="Mark notification as read",
+        request=None,
+        responses={200: success_response("NotificationReadResponse", NotificationSerializer), **standard_error_responses(401, 404, 500)},
+    )
     def put(self, request, pk):
         notification = NotificationService.mark_notification_read(
             notification_id=pk,
@@ -60,6 +75,12 @@ class NotificationReadView(APIView):
 class NotificationReadAllView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="Mark all notifications as read",
+        request=None,
+        responses={200: success_response("NotificationReadAllResponse", None), **standard_error_responses(401, 500)},
+    )
     def put(self, request):
         updated_count = NotificationService.mark_all_notifications_read(user=request.user)
         return api_success(
@@ -71,6 +92,11 @@ class NotificationReadAllView(APIView):
 class NotificationPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="Get notification preferences",
+        responses={200: success_response("NotificationPreferenceResponse", NotificationPreferenceSerializer), **standard_error_responses(401, 500)},
+    )
     def get(self, request):
         preference = NotificationService.get_or_create_preferences(request.user)
         serializer = NotificationPreferenceSerializer(preference)
@@ -79,6 +105,12 @@ class NotificationPreferenceView(APIView):
             message="Notification preferences retrieved.",
         )
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="Update notification preferences",
+        request=NotificationPreferenceSerializer,
+        responses={200: success_response("NotificationPreferenceUpdateResponse", NotificationPreferenceSerializer), **standard_error_responses(400, 401, 500)},
+    )
     def put(self, request):
         preference = NotificationService.get_or_create_preferences(request.user)
         serializer = NotificationPreferenceSerializer(preference, data=request.data)
@@ -93,6 +125,13 @@ class NotificationPreferenceView(APIView):
 class AdminBroadcastNotificationView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(
+        tags=["Notifications"],
+        summary="Broadcast notification",
+        description=f"Queue a platform-wide broadcast notification for all active users.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        request=BroadcastNotificationSerializer,
+        responses={202: success_response("BroadcastNotificationResponse", None), **standard_error_responses(400, 401, 403, 500)},
+    )
     def post(self, request):
         serializer = BroadcastNotificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -6,6 +6,7 @@ API-only with Swagger documentation.
 from django.conf import settings
 from django.urls import path, include
 from django.conf.urls.static import static
+from drf_spectacular.utils import extend_schema
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -21,6 +22,13 @@ class APIRootView(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @extend_schema(
+        tags=["Accounts"],
+        summary="API root index",
+        request=None,
+        auth=[],
+        responses={200: {"description": "API root metadata and endpoint index."}},
+    )
     def get(self, request):
         return Response(
             {

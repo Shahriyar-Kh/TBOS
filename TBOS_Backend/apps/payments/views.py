@@ -1,10 +1,27 @@
 import stripe
 from django.conf import settings
 from django.db.models import Prefetch
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import status
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.core.api_docs import (
+    AUTH_GUIDE,
+    COURSE_PARAM,
+    PAGE_PARAM,
+    PAGE_SIZE_PARAM,
+    ROLE_ACCESS_GUIDE,
+    STATUS_PARAM,
+    START_DATE_PARAM,
+    END_DATE_PARAM,
+    PAYMENT_EXAMPLE,
+    standard_error_responses,
+    success_example,
+    success_response,
+)
 from apps.core.exceptions import api_error, api_success
 from apps.core.pagination import StandardPagination
 from apps.core.permissions import IsAdmin, IsStudent
@@ -25,6 +42,16 @@ from apps.payments.services.payment_service import PaymentService
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="Create checkout session",
+        description=f"Create a checkout session for paid courses or immediate enrollment for free courses.\n\n{AUTH_GUIDE}",
+        request=CheckoutSerializer,
+        responses={
+            201: success_response("CheckoutResponse", None),
+            **standard_error_responses(400, 401, 403, 404, 500),
+        },
+    )
     def post(self, request):
         serializer = CheckoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -89,6 +116,12 @@ class CheckoutView(APIView):
 class PaymentVerificationView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="Verify payment transaction",
+        request=PaymentVerificationSerializer,
+        responses={200: success_response("PaymentVerifyResponse", OrderDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    )
     def post(self, request):
         serializer = PaymentVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -124,6 +157,12 @@ class MyOrdersView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
     pagination_class = StandardPagination
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="List student orders",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM],
+        responses={200: success_response("MyOrdersResponse", None), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         queryset = (
             Order.objects.filter(student=request.user)
@@ -137,6 +176,9 @@ class MyOrdersView(APIView):
         serializer = OrderSerializer(page, many=True)
         return api_success(
             data={
+                "page": paginator.page.number,
+                "page_size": paginator.get_page_size(request) or paginator.page_size,
+                "total_count": paginator.page.paginator.count,
                 "count": paginator.page.paginator.count,
                 "next": paginator.get_next_link(),
                 "previous": paginator.get_previous_link(),
@@ -149,6 +191,11 @@ class MyOrdersView(APIView):
 class OrderDetailView(APIView):
     permission_classes = [IsAuthenticated, IsStudent]
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="Get order details",
+        responses={200: success_response("OrderDetailResponse", OrderDetailSerializer), **standard_error_responses(401, 403, 404, 500)},
+    )
     def get(self, request, pk):
         order = (
             Order.objects.filter(student=request.user, id=pk)
@@ -172,6 +219,35 @@ class StripeWebhookView(APIView):
     permission_classes = []
     authentication_classes = []
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="Stripe webhook receiver",
+        description=(
+            "Receive Stripe events for payment lifecycle updates. The request must include the `Stripe-Signature` header, "
+            "and payload integrity is validated using the configured webhook secret.\n\n"
+            "Supported events: `checkout.session.completed`, `payment_intent.succeeded`, `payment_intent.payment_failed`."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="Stripe-Signature",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.HEADER,
+                required=True,
+                description="Stripe signature used for webhook verification.",
+            )
+        ],
+        request=inline_serializer(
+            name="StripeWebhookPayload",
+            fields={
+                "id": serializers.CharField(),
+                "type": serializers.CharField(),
+                "data": serializers.JSONField(),
+            },
+        ),
+        examples=[OpenApiExample("StripeCheckoutCompleted", value={"id": "evt_1Qw...", "type": "checkout.session.completed", "data": {"object": {"id": "cs_test_123", "payment_intent": "pi_123", "metadata": {"order_id": "bbf3e5b9-7b26-4294-b4ce-3fa6cc786f6b"}}}}, request_only=True)],
+        responses={200: success_response("StripeWebhookResponse", None), **standard_error_responses(400, 500)},
+        auth=[],
+    )
     def post(self, request):
         payload = request.body
         signature = request.META.get("HTTP_STRIPE_SIGNATURE", "")
@@ -268,6 +344,13 @@ class AdminPaymentsListView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
     pagination_class = StandardPagination
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="List all payments",
+        description=f"Administrative payment ledger view.\n\n{AUTH_GUIDE}\n\n{ROLE_ACCESS_GUIDE}",
+        parameters=[PAGE_PARAM, PAGE_SIZE_PARAM, STATUS_PARAM],
+        responses={200: success_response("AdminPaymentsListResponse", None), **standard_error_responses(401, 403, 500)},
+    )
     def get(self, request):
         queryset = (
             Payment.objects.select_related("order", "order__student", "order__course")
@@ -289,6 +372,9 @@ class AdminPaymentsListView(APIView):
 
         return api_success(
             data={
+                "page": paginator.page.number,
+                "page_size": paginator.get_page_size(request) or paginator.page_size,
+                "total_count": paginator.page.paginator.count,
                 "count": paginator.page.paginator.count,
                 "next": paginator.get_next_link(),
                 "previous": paginator.get_previous_link(),
@@ -301,6 +387,12 @@ class AdminPaymentsListView(APIView):
 class AdminRefundOrderView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(
+        tags=["Payments"],
+        summary="Refund order",
+        request=RefundOrderSerializer,
+        responses={200: success_response("AdminRefundResponse", OrderDetailSerializer), **standard_error_responses(400, 401, 403, 404, 500)},
+    )
     def post(self, request):
         serializer = RefundOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
