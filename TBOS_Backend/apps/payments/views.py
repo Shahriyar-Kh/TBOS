@@ -1,29 +1,28 @@
 import stripe
 from django.conf import settings
-from rest_framework import generics, status, viewsets
-from rest_framework.decorators import action
+from django.db.models import Prefetch
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.exceptions import api_error, api_success
 from apps.core.pagination import StandardPagination
 from apps.core.permissions import IsAdmin, IsStudent
 from apps.courses.models import Course
-from apps.enrollments.models import Enrollment
-from apps.payments.models import BillingDetails, Payment
-from apps.payments.services.payment_service import PaymentService
+from apps.enrollments.services.enrollment_service import EnrollmentService
+from apps.payments.models import Order, Payment
 from apps.payments.serializers import (
-    BillingDetailsSerializer,
     CheckoutSerializer,
+    OrderDetailSerializer,
+    OrderSerializer,
     PaymentSerializer,
+    PaymentVerificationSerializer,
+    RefundOrderSerializer,
 )
+from apps.payments.services.payment_service import PaymentService
 
 
 class CheckoutView(APIView):
-    """
-    POST /api/v1/payments/checkout/
-    Create a Stripe checkout session for a course.
-    """
     permission_classes = [IsAuthenticated, IsStudent]
 
     def post(self, request):
@@ -36,140 +35,294 @@ class CheckoutView(APIView):
                 status=Course.Status.PUBLISHED,
             )
         except Course.DoesNotExist:
-            return Response(
-                {"detail": "Course not found."},
-                status=status.HTTP_404_NOT_FOUND,
+            return api_error(
+                message="Course not found.",
+                errors={"course_id": "Course not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        if Enrollment.objects.filter(
-            student=request.user, course=course
-        ).exists():
-            return Response(
-                {"detail": "Already enrolled."},
-                status=status.HTTP_400_BAD_REQUEST,
+        if EnrollmentService.check_enrollment_access(request.user, course):
+            return api_error(
+                message="Course already purchased.",
+                errors={"course": "Course already purchased."},
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        amount = int(course.effective_price * 100)  # cents
-        if amount <= 0:
-            return Response(
-                {"detail": "Course is free. Use enrollment endpoint."},
-                status=status.HTTP_400_BAD_REQUEST,
+        if course.is_free:
+            enrollment = EnrollmentService.enroll_student(request.user, course)
+            return api_success(
+                data={
+                    "course_id": str(course.id),
+                    "enrollment_id": str(enrollment.id),
+                    "is_free": True,
+                },
+                message="Free course enrolled successfully.",
+                status_code=status.HTTP_201_CREATED,
             )
 
-        stripe.api_key = settings.STRIPE_SECRET_KEY
+        try:
+            order = PaymentService.create_order(
+                student=request.user,
+                course=course,
+                billing_details=serializer.validated_data["billing_details"],
+            )
+            checkout_session = PaymentService.create_checkout_session(order)
+        except ValueError as exc:
+            return api_error(
+                message=str(exc),
+                errors={"detail": str(exc)},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": amount,
-                        "product_data": {
-                            "name": course.title,
-                        },
-                    },
-                    "quantity": 1,
-                }
-            ],
-            mode="payment",
-            success_url=settings.FRONTEND_URL + "/payment/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=settings.FRONTEND_URL + "/payment/failed",
-            metadata={
-                "user_id": str(request.user.id),
-                "course_id": str(course.id),
+        return api_success(
+            data={
+                "order_id": str(order.id),
+                "order_number": order.order_number,
+                "checkout_url": checkout_session.url,
+                "checkout_session_id": checkout_session.id,
             },
+            message="Checkout session created successfully.",
+            status_code=status.HTTP_201_CREATED,
         )
 
-        PaymentService.create_pending_payment(
-            user=request.user,
-            course=course,
-            checkout_session_id=checkout_session.id,
+
+class PaymentVerificationView(APIView):
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    def post(self, request):
+        serializer = PaymentVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            order = Order.objects.get(id=serializer.validated_data["order_id"], student=request.user)
+        except Order.DoesNotExist:
+            return api_error(
+                message="Order not found.",
+                errors={"order_id": "Order not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            order = PaymentService.verify_payment(
+                order_id=order.id,
+                transaction_id=serializer.validated_data["transaction_id"],
+            )
+        except ValueError as exc:
+            return api_error(
+                message=str(exc),
+                errors={"detail": str(exc)},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return api_success(
+            data=OrderDetailSerializer(order).data,
+            message="Payment verification completed.",
         )
 
-        return Response(
-            {"checkout_url": checkout_session.url},
-            status=status.HTTP_201_CREATED,
+
+class MyOrdersView(APIView):
+    permission_classes = [IsAuthenticated, IsStudent]
+    pagination_class = StandardPagination
+
+    def get(self, request):
+        queryset = (
+            Order.objects.filter(student=request.user)
+            .select_related("course", "course__category", "course__level", "course__instructor")
+            .prefetch_related("payments")
+            .order_by("-created_at")
+        )
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = OrderSerializer(page, many=True)
+        return api_success(
+            data={
+                "count": paginator.page.paginator.count,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+                "results": serializer.data,
+            },
+            message="Orders retrieved successfully.",
+        )
+
+
+class OrderDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsStudent]
+
+    def get(self, request, pk):
+        order = (
+            Order.objects.filter(student=request.user, id=pk)
+            .select_related("course", "course__category", "course__level", "course__instructor")
+            .prefetch_related("payments")
+            .first()
+        )
+        if not order:
+            return api_error(
+                message="Order not found.",
+                errors={"order": "Order not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        return api_success(
+            data=OrderDetailSerializer(order).data,
+            message="Order details retrieved successfully.",
         )
 
 
 class StripeWebhookView(APIView):
-    """
-    POST /api/v1/payments/webhook/stripe/
-    Handle Stripe webhook events.
-    """
     permission_classes = []
     authentication_classes = []
 
     def post(self, request):
         payload = request.body
-        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
-        webhook_secret = settings.STRIPE_WEBHOOK_SECRET
+        signature = request.META.get("HTTP_STRIPE_SIGNATURE", "")
 
         try:
             event = stripe.Webhook.construct_event(
-                payload, sig_header, webhook_secret
+                payload=payload,
+                sig_header=signature,
+                secret=settings.STRIPE_WEBHOOK_SECRET,
             )
         except (ValueError, stripe.error.SignatureVerificationError):
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return api_error(
+                message="Invalid webhook payload.",
+                errors={"detail": "Invalid signature or payload."},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
-        if event["type"] == "checkout.session.completed":
-            session = event["data"]["object"]
-            self._handle_checkout_complete(session)
+        event_type = event.get("type")
+        data = event.get("data", {}).get("object", {})
 
-        return Response({"status": "ok"})
+        if event_type == "checkout.session.completed":
+            self._on_checkout_session_completed(data)
+        elif event_type == "payment_intent.succeeded":
+            self._on_payment_intent_succeeded(data)
+        elif event_type == "payment_intent.payment_failed":
+            self._on_payment_intent_failed(data)
+
+        return api_success(
+            data={"event_type": event_type},
+            message="Webhook processed.",
+        )
 
     @staticmethod
-    def _handle_checkout_complete(session):
-        payment = Payment.objects.filter(
-            provider_checkout_id=session["id"]
-        ).first()
-        if not payment:
+    def _resolve_order_from_data(data):
+        metadata = data.get("metadata") or {}
+        order_id = metadata.get("order_id") or data.get("client_reference_id")
+        if not order_id:
+            return None
+        return Order.objects.filter(id=order_id).select_related("student", "course").first()
+
+    @classmethod
+    def _on_checkout_session_completed(cls, session):
+        order = cls._resolve_order_from_data(session)
+        if not order:
             return
 
-        PaymentService.complete_checkout_session(
-            payment=payment,
-            provider_payment_id=session.get("payment_intent", ""),
+        amount_total = session.get("amount_total")
+        expected = int(order.amount * 100)
+        if amount_total is not None and int(amount_total) != expected:
+            PaymentService.handle_payment_failure(
+                order=order,
+                transaction_id=session.get("payment_intent", ""),
+                payment_data=session,
+            )
+            return
+
+        PaymentService.handle_payment_success(
+            order=order,
+            transaction_id=session.get("payment_intent", ""),
+            payment_data=session,
+        )
+
+    @classmethod
+    def _on_payment_intent_succeeded(cls, payment_intent):
+        order = cls._resolve_order_from_data(payment_intent)
+        if not order:
+            return
+        try:
+            PaymentService.handle_payment_success(
+                order=order,
+                transaction_id=payment_intent.get("id", ""),
+                payment_data=payment_intent,
+            )
+        except ValueError:
+            PaymentService.handle_payment_failure(
+                order=order,
+                transaction_id=payment_intent.get("id", ""),
+                payment_data=payment_intent,
+            )
+
+    @classmethod
+    def _on_payment_intent_failed(cls, payment_intent):
+        order = cls._resolve_order_from_data(payment_intent)
+        if not order:
+            return
+        PaymentService.handle_payment_failure(
+            order=order,
+            transaction_id=payment_intent.get("id", ""),
+            payment_data=payment_intent,
         )
 
 
-class MyPaymentsView(generics.ListAPIView):
-    """GET /api/v1/payments/my/"""
-    serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class = StandardPagination
-
-    def get_queryset(self):
-        return Payment.objects.filter(user=self.request.user).select_related("course")
-
-
-class AdminPaymentViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    /api/v1/payments/admin/
-    Admin view of all payments.
-    """
-    serializer_class = PaymentSerializer
+class AdminPaymentsListView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
     pagination_class = StandardPagination
 
-    def get_queryset(self):
-        qs = Payment.objects.select_related("user", "course")
-        payment_status = self.request.query_params.get("status")
-        if payment_status:
-            qs = qs.filter(status=payment_status)
-        return qs
+    def get(self, request):
+        queryset = (
+            Payment.objects.select_related("order", "order__student", "order__course")
+            .prefetch_related(
+                Prefetch(
+                    "order__payments",
+                    queryset=Payment.objects.order_by("-created_at"),
+                )
+            )
+            .order_by("-created_at")
+        )
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            queryset = queryset.filter(payment_status=status_filter)
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = PaymentSerializer(page, many=True)
+
+        return api_success(
+            data={
+                "count": paginator.page.paginator.count,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+                "results": serializer.data,
+            },
+            message="Payments retrieved successfully.",
+        )
 
 
-class BillingDetailsViewSet(viewsets.ModelViewSet):
-    """
-    /api/v1/payments/billing/
-    Student CRUD for billing details.
-    """
-    serializer_class = BillingDetailsSerializer
-    permission_classes = [IsAuthenticated]
+class AdminRefundOrderView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
 
-    def get_queryset(self):
-        return BillingDetails.objects.filter(user=self.request.user)
+    def post(self, request):
+        serializer = RefundOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        order = Order.objects.filter(id=serializer.validated_data["order_id"]).select_related("student", "course").first()
+        if not order:
+            return api_error(
+                message="Order not found.",
+                errors={"order_id": "Order not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            refunded_order = PaymentService.refund_order(order)
+        except ValueError as exc:
+            return api_error(
+                message=str(exc),
+                errors={"detail": str(exc)},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return api_success(
+            data=OrderDetailSerializer(refunded_order).data,
+            message="Order refunded successfully.",
+        )

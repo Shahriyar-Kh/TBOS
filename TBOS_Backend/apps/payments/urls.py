@@ -1,15 +1,11 @@
-from django.urls import path, include
-from rest_framework.routers import SimpleRouter
+from django.urls import path
 
 from apps.payments import views
 
-router = SimpleRouter()
-router.register(r"admin", views.AdminPaymentViewSet, basename="admin-payments")
-router.register(r"billing", views.BillingDetailsViewSet, basename="billing-details")
-
 urlpatterns = [
     path("checkout/", views.CheckoutView.as_view(), name="checkout"),
-    path("webhook/stripe/", views.StripeWebhookView.as_view(), name="stripe-webhook"),
-    path("my/", views.MyPaymentsView.as_view(), name="my-payments"),
-    path("", include(router.urls)),
+    path("verify/", views.PaymentVerificationView.as_view(), name="payment-verify"),
+    path("my-orders/", views.MyOrdersView.as_view(), name="my-orders"),
+    path("order/<uuid:pk>/", views.OrderDetailView.as_view(), name="order-detail"),
+    path("stripe-webhook/", views.StripeWebhookView.as_view(), name="stripe-webhook"),
 ]

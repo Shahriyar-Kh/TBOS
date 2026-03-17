@@ -26,7 +26,7 @@ class AnalyticsService:
         agg = enrollments.aggregate(avg_progress=Avg("progress_percent"))
         analytics.avg_completion_percent = round(agg["avg_progress"] or 0, 2)
 
-        revenue = course.payments.filter(status="completed").aggregate(
+        revenue = course.orders.filter(order_status="COMPLETED").aggregate(
             total=Sum("amount")
         )
         analytics.total_revenue = revenue["total"] or 0

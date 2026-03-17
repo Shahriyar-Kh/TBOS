@@ -16,7 +16,7 @@ from apps.analytics.serializers import (
 )
 from apps.courses.models import Course
 from apps.enrollments.models import Enrollment
-from apps.payments.models import Payment
+from apps.payments.models import Order
 
 User = get_user_model()
 
@@ -77,8 +77,8 @@ class AdminPlatformStatsView(APIView):
                 status=Course.Status.PUBLISHED
             ).count(),
             "total_enrollments": Enrollment.objects.filter(is_active=True).count(),
-            "total_revenue": Payment.objects.filter(
-                status=Payment.Status.COMPLETED
+            "total_revenue": Order.objects.filter(
+                order_status=Order.OrderStatus.COMPLETED
             ).aggregate(total=Sum("amount"))["total"]
             or 0,
         }

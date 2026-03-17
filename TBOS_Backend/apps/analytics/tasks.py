@@ -8,7 +8,7 @@ def update_course_analytics():
     from apps.analytics.models import CourseAnalytics
     from apps.courses.models import Course
     from apps.enrollments.models import Enrollment
-    from apps.payments.models import Payment
+    from apps.payments.models import Order
 
     for course in Course.objects.filter(status=Course.Status.PUBLISHED):
         enrollments = Enrollment.objects.filter(course=course, is_active=True)
@@ -21,8 +21,9 @@ def update_course_analytics():
             enrollments.aggregate(avg=Avg("progress_percent"))["avg"] or 0
         )
         analytics.total_revenue = (
-            Payment.objects.filter(
-                course=course, status=Payment.Status.COMPLETED
+            Order.objects.filter(
+                course=course,
+                order_status=Order.OrderStatus.COMPLETED,
             ).aggregate(total=Sum("amount"))["total"]
             or 0
         )

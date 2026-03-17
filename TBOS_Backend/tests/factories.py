@@ -10,6 +10,8 @@ from apps.quiz.models import Quiz, Question, Option, QuizAttempt, StudentAnswer
 from apps.assignments.models import Assignment, AssignmentGrade, AssignmentSubmission
 from apps.reviews.models import Review, ReviewResponse
 from apps.certificates.models import Certificate
+from apps.notifications.models import Notification, NotificationPreference
+from apps.payments.models import BillingDetails, Order, Payment
 
 
 class UserFactory(DjangoModelFactory):
@@ -299,6 +301,39 @@ class QuizAttemptFactory(DjangoModelFactory):
     status = QuizAttempt.Status.IN_PROGRESS
 
 
+class NotificationPreferenceFactory(DjangoModelFactory):
+    class Meta:
+        model = NotificationPreference
+
+    user = factory.SubFactory(UserFactory)
+    email_notifications_enabled = True
+    in_app_notifications_enabled = True
+    course_updates = True
+    assignment_notifications = True
+    quiz_notifications = True
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        user = kwargs["user"]
+        preference, _ = model_class.objects.get_or_create(user=user)
+        for key, value in kwargs.items():
+            if key != "user":
+                setattr(preference, key, value)
+        preference.save()
+        return preference
+
+
+class NotificationFactory(DjangoModelFactory):
+    class Meta:
+        model = Notification
+
+    recipient = factory.SubFactory(UserFactory)
+    title = factory.Sequence(lambda n: f"Notification {n}")
+    message = factory.Faker("sentence", nb_words=10)
+    notification_type = Notification.NotificationType.SYSTEM_ALERT
+    is_read = False
+
+
 class StudentAnswerFactory(DjangoModelFactory):
     class Meta:
         model = StudentAnswer
@@ -398,3 +433,53 @@ class CertificateFactory(DjangoModelFactory):
     verification_code = factory.Sequence(lambda n: f"verify-code-{n + 1}")
     issue_date = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now().date())
     certificate_url = "https://tbos.com/api/v1/certificates/fake/download/"
+
+
+# ──────────────────────────────────────────────
+# Payment factories
+# ──────────────────────────────────────────────
+
+
+class OrderFactory(DjangoModelFactory):
+    class Meta:
+        model = Order
+
+    student = factory.SubFactory(UserFactory)
+    course = factory.SubFactory(
+        CourseFactory,
+        is_free=False,
+        price=120,
+        discount_price=100,
+        status="published",
+    )
+    order_number = factory.Sequence(lambda n: f"TBOS-ORDER-{n + 1:06d}")
+    order_status = Order.OrderStatus.PENDING
+    amount = factory.LazyAttribute(lambda obj: obj.course.effective_price)
+    currency = "USD"
+    payment_method = Order.PaymentMethod.STRIPE
+
+
+class PaymentFactory(DjangoModelFactory):
+    class Meta:
+        model = Payment
+
+    order = factory.SubFactory(OrderFactory)
+    payment_provider = Payment.Provider.STRIPE
+    payment_status = Payment.PaymentStatus.PENDING
+    transaction_id = ""
+    payment_data = factory.LazyFunction(dict)
+
+
+class BillingDetailsFactory(DjangoModelFactory):
+    class Meta:
+        model = BillingDetails
+
+    user = factory.SubFactory(UserFactory)
+    first_name = factory.Faker("first_name")
+    last_name = factory.Faker("last_name")
+    email = factory.LazyAttribute(lambda obj: obj.user.email)
+    country = "Bangladesh"
+    city = "Dhaka"
+    postal_code = "1207"
+    address = factory.Faker("street_address")
+    phone_number = "+8801700000000"
