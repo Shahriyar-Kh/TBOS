@@ -35,6 +35,12 @@ class UserFactory(DjangoModelFactory):
             instance.save()
 
 
+class StudentFactory(UserFactory):
+    role = User.Role.STUDENT
+    email = factory.Sequence(lambda n: f"student{n}@example.com")
+    username = factory.Sequence(lambda n: f"student{n}")
+
+
 class InstructorFactory(UserFactory):
     role = User.Role.INSTRUCTOR
     email = factory.Sequence(lambda n: f"instructor{n}@example.com")
@@ -156,6 +162,10 @@ class CourseSectionFactory(DjangoModelFactory):
     title = factory.Sequence(lambda n: f"Section {n}")
     description = factory.Faker("sentence", nb_words=8)
     order = factory.Sequence(lambda n: n)
+
+
+class SectionFactory(CourseSectionFactory):
+    pass
 
 
 class LessonFactory(DjangoModelFactory):
@@ -380,6 +390,10 @@ class AssignmentSubmissionFactory(DjangoModelFactory):
     attempt_number = 1
     status = AssignmentSubmission.Status.SUBMITTED
     submitted_at = factory.LazyFunction(lambda: __import__("django.utils.timezone", fromlist=["now"]).now())
+
+
+class SubmissionFactory(AssignmentSubmissionFactory):
+    pass
 
 
 class AssignmentGradeFactory(DjangoModelFactory):

@@ -13,7 +13,7 @@ from tests.factories import (
     InstructorFactory,
     ReviewFactory,
     ReviewResponseFactory,
-    UserFactoy,
+    UserFactory,
 )
 
 BASE = "/api/v1/reviews"
