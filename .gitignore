@@ -48,16 +48,6 @@ TBOS_Backend/logs/*.log
 !.env.example
 
 # ==============================
-# Node / Frontend
-# ==============================
-node_modules/
-.next/
-out/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# ==============================
 # Testing
 # ==============================
 .pytest_cache/
