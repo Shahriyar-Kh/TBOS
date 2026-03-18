@@ -100,3 +100,12 @@ coverage/
 # Deployment
 .vercel
 
+# Frontend scoped safety rules
+TBOS_Frontend/node_modules/
+TBOS_Frontend/.next/
+TBOS_Frontend/out/
+TBOS_Frontend/coverage/
+TBOS_Frontend/*.tsbuildinfo
+TBOS_Frontend/*.json
+TBOS_Frontend/.npm/
+
