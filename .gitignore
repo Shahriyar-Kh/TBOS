@@ -1,5 +1,23 @@
 # ==============================
-# Python
+# Global / OS / Editor
+# ==============================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ==============================
+# Environment files
+# ==============================
+.env
+.env.*
+!.env.example
+.python-version
+
+# ==============================
+# Python (Backend)
 # ==============================
 __pycache__/
 *.py[cod]
@@ -8,6 +26,13 @@ __pycache__/
 *.egg-info/
 *.egg
 .Python
+venv/
+env/
+ENV/
+.venv/
+venv.bak/
+
+# Backend build / test artifacts
 build/
 dist/
 downloads/
@@ -18,62 +43,69 @@ lib64/
 parts/
 sdist/
 var/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+pip-wheel-metadata/
 
-# ==============================
-# Virtual environments
-# ==============================
-venv/
-env/
-ENV/
-.venv/
-venv.bak/
-
-# ==============================
-# Django
-# ==============================
+# Django-specific
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+TBOS_Backend/db.sqlite3
+TBOS_Backend/db.sqlite3-journal
 staticfiles/
+TBOS_Backend/staticfiles/
 TBOS_Backend/media/
 TBOS_Backend/Media/
 TBOS_Backend/logs/*.log
+media/
 
 # ==============================
-# Environment files
-# ==============================
-.env
-.env.*
-!.env.example
-
-# ==============================
-# Node / Frontend
+# Node / Next.js (Frontend)
 # ==============================
 node_modules/
-.next/
-out/
+.pnpm-debug.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ==============================
-# Testing
-# ==============================
-.pytest_cache/
-.coverage
-htmlcov/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.npm/
+.parcel-cache/
+.turbo/
 
-# ==============================
-# IDEs
-# ==============================
-.vscode/
-.idea/
-*.swp
-*.swo
+# Yarn / PnP
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# ==============================
-# OS files
-# ==============================
-.DS_Store
-Thumbs.db
+# Deployment
+.vercel
+
+# Frontend scoped safety rules
+TBOS_Frontend/node_modules/
+TBOS_Frontend/.next/
+TBOS_Frontend/out/
+TBOS_Frontend/coverage/
+TBOS_Frontend/*.tsbuildinfo
+TBOS_Frontend/*.json
+TBOS_Frontend/.npm/
+
