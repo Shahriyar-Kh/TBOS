@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   TBOS Design Tokens — CSS Variables
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* ── Light theme ─── */
+    --background: 0 0% 100%;
+    --foreground: 215 28% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 9%;
+
+    --primary: 195 83% 52%;         /* brand-500 #1eb8e5 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 95%;
+    --secondary-foreground: 215 28% 20%;
+
+    --muted: 215 20% 96%;
+    --muted-foreground: 215 14% 50%;
+
+    --accent: 195 83% 95%;
+    --accent-foreground: 195 83% 20%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 90%;
+    --input: 215 20% 90%;
+    --ring: 195 83% 52%;
+
+    --radius: 0.75rem;
+
+    /* ── Charts ─── */
+    --chart-1: 195 83% 52%;
+    --chart-2: 210 80% 60%;
+    --chart-3: 170 70% 45%;
+    --chart-4: 40 90% 55%;
+    --chart-5: 340 75% 55%;
+  }
+
+  .dark {
+    --background: 215 36% 7%;
+    --foreground: 215 14% 95%;
+
+    --card: 215 32% 10%;
+    --card-foreground: 215 14% 95%;
+
+    --popover: 215 32% 10%;
+    --popover-foreground: 215 14% 95%;
+
+    --primary: 195 83% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 28% 15%;
+    --secondary-foreground: 215 14% 80%;
+
+    --muted: 215 28% 15%;
+    --muted-foreground: 215 14% 55%;
+
+    --accent: 215 28% 18%;
+    --accent-foreground: 195 83% 70%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 28% 16%;
+    --input: 215 28% 16%;
+    --ring: 195 83% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300 dark:bg-slate-600;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-500;
+  }
+
+  /* Focus visible */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Headings use display font */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-syne), system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* ── Page section container ─── */
+  .section-container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ── Gradient text ─── */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent;
+  }
+
+  /* ── Glass card ─── */
+  .glass-card {
+    @apply rounded-2xl border border-white/20 bg-white/70 backdrop-blur-md
+           dark:border-white/5 dark:bg-slate-900/70;
+  }
+
+  /* ── Shimmer loading ─── */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.4) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  /* ── Brand glow button ─── */
+  .btn-glow {
+    @apply relative overflow-hidden;
+  }
+  .btn-glow::before {
+    content: "";
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: radial-gradient(
+      circle at 50% 50%,
+      rgba(30, 184, 229, 0.25),
+      transparent 70%
+    );
+  }
+  .btn-glow:hover::before {
+    @apply opacity-100;
+  }
+
+  /* ── Dashboard stat card ─── */
+  .stat-card {
+    @apply rounded-2xl border border-border bg-card p-6 transition-shadow
+           duration-200 hover:shadow-md;
+  }
+
+  /* ── Progress bar ─── */
+  .progress-bar {
+    @apply h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800;
+  }
+  .progress-bar-fill {
+    @apply h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400
+           transition-all duration-500;
+  }
+}
+
+@layer utilities {
+  /* Prevent layout shift on scrollbar appear */
+  .scrollbar-stable {
+    scrollbar-gutter: stable;
+  }
+
+  /* Fade in animation utility */
+  .animate-in-up {
+    @apply animate-fade-in;
+  }
+}
