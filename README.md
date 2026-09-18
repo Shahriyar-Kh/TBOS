@@ -1,12 +1,12 @@
 <div align="center">
 
-# TechBuilt Open School (TBOS)
+# TechBuilt Open School — Legacy LMS
 
-### Full-Stack Learning Management Platform
+### Previous-Generation Full-Stack Learning Management Platform
 
 **Django REST Framework · Next.js · React · PostgreSQL · Redis · Celery**
 
-A modular LMS codebase for course delivery, assessments, enrollments, payments, analytics, certificates, notifications, and role-oriented learning workflows.
+A previous-generation TBOS LMS codebase demonstrating course delivery, assessments, enrollments, payments, analytics, certificates, notifications, and role-oriented learning workflows. The current long-term TechBuilt Open School platform is being rebuilt separately in `TechBuilt_Open_School`.
 
 <p>
   <img alt="Python" src="https://img.shields.io/badge/Python-Backend-3776AB?logo=python&logoColor=white">
@@ -21,9 +21,13 @@ A modular LMS codebase for course delivery, assessments, enrollments, payments, 
 
 ---
 
+## Repository Positioning
+
+> **Legacy / portfolio reference:** this repository represents an earlier TBOS LMS implementation. The current organization platform is being developed separately in [`TechBuilt_Open_School`](https://github.com/Shahriyar-Kh/TechBuilt_Open_School) with a new governed architecture and phased product roadmap. This repository remains useful as historical engineering evidence and is not presented as the current TBOS production codebase.
+
 ## Overview
 
-**TechBuilt Open School (TBOS)** is a full-stack learning-management platform organized as a Django/DRF backend and a Next.js frontend.
+This earlier **TechBuilt Open School (TBOS)** implementation is a full-stack learning-management platform organized as a Django/DRF backend and a Next.js frontend.
 
 The repository demonstrates how a multi-domain education product can be structured around clear application boundaries instead of a single monolithic feature module. The backend separates accounts, courses, lessons, videos, quizzes, assignments, enrollments, payments, reviews, analytics, AI tools, certificates, and notifications into focused Django applications.
 
@@ -383,7 +387,9 @@ This README documents capabilities visible in the repository rather than making 
 ## Author
 
 **Shahriyar Khan**  
-Full-Stack Python Developer — Django/DRF · FastAPI · React/Next.js
+Software Engineer · Full-Stack Python Developer
+
+**Core focus:** Python · Django · Django REST Framework · FastAPI · React / Next.js · PostgreSQL
 
 - GitHub: [@Shahriyar-Kh](https://github.com/Shahriyar-Kh)
 - Portfolio: [shahriyarkhan.com](https://shahriyarkhan.com)
