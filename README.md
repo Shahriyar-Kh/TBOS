@@ -1,3 +1,10 @@
+<p align="center">
+  <img src="TBOS.png"
+       alt="Project GitHub Cover"
+       width="100%" />
+</p>
+
+
 <div align="center">
 
 # TechBuilt Open School — Legacy LMS
