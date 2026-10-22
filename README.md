@@ -400,7 +400,7 @@ Software Engineer · Full-Stack Python Developer
 
 - GitHub: [@Shahriyar-Kh](https://github.com/Shahriyar-Kh)
 - Portfolio: [shahriyarkhan.com](https://shahriyarkhan.com)
-- LinkedIn: [Shahriyar Khan](https://www.linkedin.com/in/shahriyar-khan-developer/)
+- LinkedIn: [Shahriyar Khan](https://www.linkedin.com/in/shahriyar-kh/)
 
 ---
 
